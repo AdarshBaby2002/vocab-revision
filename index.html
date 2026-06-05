@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A simple app to revise German to English vocabulary.">
+    <title>Vocab Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Vocab Revision</h1>
+            <p>Save and review your German - English vocabulary.</p>
+            <div style="margin-top: 1rem;">
+                <a href="quiz.html" class="btn-primary" style="display: inline-flex; width: auto; padding: 0.5rem 1.5rem; text-decoration: none; font-size: 1rem;">Take Quiz</a>
+            </div>
+        </header>
+
+        <div class="glass-card">
+            <form id="vocab-form">
+                <div class="input-group">
+                    <label for="german">German Word/Phrase</label>
+                    <input type="text" id="german" placeholder="e.g., Apfel" required autocomplete="off">
+                </div>
+
+                <div class="icon-swap action-row">
+                    <button type="button" id="translate-btn" class="btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3-4 4 4 4"/><path d="M20 7H4"/><path d="m8 21 4-4-4-4"/><path d="M4 17h16"/></svg>
+                        Translate
+                    </button>
+                    <button type="button" id="clear-btn" class="btn-secondary">
+                        Clear
+                    </button>
+                </div>
+
+                <div class="input-group">
+                    <label for="english">English Translation</label>
+                    <input type="text" id="english" placeholder="e.g., Apple" required autocomplete="off">
+                </div>
+                
+                <div id="dictionary-container" class="glass-card" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(0,0,0,0.2);">
+                    <h3 style="margin-top: 0; font-size: 1rem; margin-bottom: 0.5rem;">More translations <span style="font-size: 0.8em; font-weight: normal; color: var(--text-secondary);">(Click German words to add as synonyms)</span></h3>
+                    <div id="dictionary-content"></div>
+                </div>
+
+                <div class="selected-synonyms-section" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--card-border); margin-bottom: 1.5rem;">
+                    <label>Selected Synonyms to Save</label>
+                    <div id="selected-synonyms-list" class="synonyms-list" style="margin: 0.5rem 0; min-height: 2.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;"></div>
+                </div>
+
+                <button type="submit" id="save-btn" class="btn-primary">
+                    <span class="btn-text">Save Translation</span>
+                    <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+            </form>
+            <div id="status-message"></div>
+        </div>
+
+        <div class="recent-list-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin-bottom: 0;">Recent Words</h2>
+                <button id="export-btn" style="background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; transition: background 0.3s;">
+                    Export JSON
+                </button>
+            </div>
+            <ul id="vocab-list" class="vocab-list">
+                <!-- Items will be injected here -->
+            </ul>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

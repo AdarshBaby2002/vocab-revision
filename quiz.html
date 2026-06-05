@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocab Quiz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Vocab Quiz</h1>
+            <p>Test saved words or online German vocabulary by level.</p>
+            <div style="margin-top: 1rem;">
+                <a href="index.html" class="btn-primary" style="display: inline-flex; width: auto; padding: 0.5rem 1.5rem; text-decoration: none; font-size: 1rem; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary);">Back to Home</a>
+            </div>
+            
+            <div class="quiz-controls">
+                <div class="quiz-control">
+                    <label for="quiz-source">Source</label>
+                    <select id="quiz-source">
+                        <option value="saved">Saved Data</option>
+                        <option value="online">Online Words</option>
+                    </select>
+                </div>
+
+                <div class="quiz-control">
+                    <label for="quiz-level">Level</label>
+                    <select id="quiz-level">
+                        <option value="A1">A1</option>
+                        <option value="A2">A2</option>
+                        <option value="B1">B1</option>
+                        <option value="B2">B2</option>
+                        <option value="C1">C1</option>
+                        <option value="C2">C2</option>
+                    </select>
+                </div>
+
+                <div class="quiz-control">
+                    <label for="quiz-mode">Quiz Mode</label>
+                    <select id="quiz-mode">
+                        <option value="mixed">Mixed</option>
+                        <option value="de-to-en">German to English</option>
+                        <option value="en-to-de">English to German</option>
+                    </select>
+                </div>
+
+                <button type="button" id="new-question-btn" class="btn-secondary">Ask Question</button>
+            </div>
+        </header>
+
+        <div class="glass-card" id="quiz-card">
+            <div id="no-data-msg" style="display: none; text-align: center; color: var(--text-secondary);">
+                You haven't saved any vocabulary yet. Go back to Home and add some words first!
+            </div>
+
+            <form id="quiz-form" style="display: none;">
+                <div style="text-align: center; margin-bottom: 2rem;">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;" id="question-label">Translate to English:</p>
+                    <h2 id="question-word" style="font-size: 2rem; color: #c084fc;">Word</h2>
+                </div>
+                
+                <div class="input-group">
+                    <input type="text" id="answer" placeholder="Your answer here..." required autocomplete="off">
+                </div>
+
+                <button type="submit" id="check-btn" class="btn-primary" style="margin-top: 1.5rem;">
+                    <span class="btn-text">Check Answer</span>
+                    <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+            </form>
+            <div id="status-message"></div>
+            
+            <div id="next-container" style="display: none; margin-top: 1rem;">
+                <button id="add-online-btn" class="btn-secondary" style="display: none; width: 100%; margin-bottom: 0.75rem;">Add Online Word to DB</button>
+                <button id="next-btn" class="btn-primary" style="background: var(--bg-gradient-end); border: 1px solid var(--primary-color);">Next Question</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="quiz.js"></script>
+</body>
+</html>
