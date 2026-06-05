@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let vocabData = [];
     let quizProgress = {};
     let currentQuestion = null;
+    let currentUser = null;
+    let vocabRef = null;
+    let progressRef = null;
 
     let dataLoaded = false;
     let progressLoaded = false;
@@ -33,26 +36,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadPreferences();
 
-    database.ref('vocab').on('value', (snapshot) => {
-        const data = snapshot.val();
-        vocabData = [];
-        if (data) {
-            for (const key in data) {
-                vocabData.push({
-                    firebaseKey: key,
-                    ...data[key]
-                });
-            }
+    initializeAuthUi({
+        required: true,
+        onSignedIn: (user) => {
+            currentUser = user;
+            startUserSession(user);
+        },
+        onSignedOut: () => {
+            stopUserSession();
+            quizForm.style.display = 'none';
+            noDataMsg.style.display = 'block';
+            noDataMsg.textContent = 'Sign in to load your saved progress and answer history.';
         }
-        dataLoaded = true;
-        checkAndStart();
     });
 
-    database.ref('progress').on('value', (snapshot) => {
-        quizProgress = snapshot.val() || {};
-        progressLoaded = true;
-        checkAndStart();
-    });
+    function startUserSession(user) {
+        stopUserSession();
+
+        currentUser = user;
+        dataLoaded = false;
+        progressLoaded = false;
+        quizStarted = false;
+        vocabData = [];
+        quizProgress = {};
+
+        vocabRef = database.ref('vocab');
+        progressRef = database.ref(`users/${user.uid}/progress`);
+
+        vocabRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            vocabData = [];
+            if (data) {
+                for (const key in data) {
+                    vocabData.push({
+                        firebaseKey: key,
+                        ...data[key]
+                    });
+                }
+            }
+            dataLoaded = true;
+            checkAndStart();
+        });
+
+        progressRef.on('value', (snapshot) => {
+            quizProgress = snapshot.val() || {};
+            progressLoaded = true;
+            checkAndStart();
+        });
+    }
+
+    function stopUserSession() {
+        if (vocabRef) vocabRef.off();
+        if (progressRef) progressRef.off();
+        vocabRef = null;
+        progressRef = null;
+        currentUser = null;
+        dataLoaded = false;
+        progressLoaded = false;
+        quizStarted = false;
+        vocabData = [];
+        quizProgress = {};
+        currentQuestion = null;
+    }
 
     function loadPreferences() {
         try {
@@ -89,10 +134,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function saveProgress() {
+        if (!currentUser) return;
+
         try {
-            await database.ref('progress').set(quizProgress);
+            await database.ref(`users/${currentUser.uid}/progress`).set(quizProgress);
         } catch (error) {
             console.error('Failed to save progress to Firebase:', error);
+        }
+    }
+
+    async function saveAttempt(isCorrect, normalizedUserAnswer, allValidAnswerStrings) {
+        if (!currentUser || !currentQuestion) return;
+
+        try {
+            await database.ref(`users/${currentUser.uid}/attempts`).push({
+                createdAt: Date.now(),
+                createdAtIso: new Date().toISOString(),
+                correct: isCorrect,
+                questionId: currentQuestion.id,
+                vocabId: currentQuestion.vocabItem.id,
+                source: currentQuestion.source,
+                direction: currentQuestion.direction,
+                questionText: currentQuestion.questionText,
+                userAnswer: answerInput.value.trim(),
+                normalizedUserAnswer,
+                correctAnswers: Array.from(allValidAnswerStrings).join(' / '),
+                streakAfterAnswer: quizProgress[currentQuestion.id]?.streak || 0,
+                nextReview: quizProgress[currentQuestion.id]?.nextReview || 0
+            });
+        } catch (error) {
+            console.error('Failed to save answer attempt:', error);
         }
     }
 
@@ -243,6 +314,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadNextQuestion() {
         resetQuestionUi();
 
+        if (!currentUser) {
+            quizForm.style.display = 'none';
+            noDataMsg.style.display = 'block';
+            noDataMsg.textContent = 'Sign in to start the quiz.';
+            return;
+        }
+
         if (quizSourceSelect.value === 'online') {
             quizForm.style.display = 'block';
             questionLabel.textContent = `Loading ${quizLevelSelect.value} online word...`;
@@ -354,7 +432,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const prog = quizProgress[currentQuestion.id];
         const now = Date.now();
 
-        if (validAnswerTokens.has(userAnswer)) {
+        const isCorrect = validAnswerTokens.has(userAnswer);
+
+        if (isCorrect) {
             checkBtn.classList.add('success');
 
             const otherValidStrings = Array.from(allValidAnswerStrings).filter(str => {
@@ -405,6 +485,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentQuestion.source !== 'online') {
             saveProgress();
         }
+
+        saveAttempt(isCorrect, userAnswer, allValidAnswerStrings);
 
         answerInput.disabled = true;
         checkBtn.style.display = 'none';

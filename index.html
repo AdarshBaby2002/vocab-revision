@@ -17,8 +17,25 @@
             <p>Save and review your German - English vocabulary.</p>
             <div style="margin-top: 1rem;">
                 <a href="quiz.html" class="btn-primary" style="display: inline-flex; width: auto; padding: 0.5rem 1.5rem; text-decoration: none; font-size: 1rem;">Take Quiz</a>
+                <a href="admin.html" class="btn-secondary" style="text-decoration: none; margin-left: 0.5rem;">Admin</a>
             </div>
         </header>
+
+        <section id="auth-card" class="glass-card auth-card">
+            <div class="auth-topline">
+                <strong id="user-badge">Not signed in</strong>
+                <button type="button" id="sign-out-btn" class="btn-secondary" style="display: none;">Sign Out</button>
+            </div>
+            <form id="auth-form" class="auth-form">
+                <input type="email" id="auth-email" placeholder="Email" autocomplete="email" required>
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" required>
+                <div class="auth-actions">
+                    <button type="submit" id="sign-in-btn" class="btn-primary">Sign In</button>
+                    <button type="button" id="sign-up-btn" class="btn-secondary">Create Account</button>
+                </div>
+            </form>
+            <div id="auth-status"></div>
+        </section>
 
         <div class="glass-card">
             <form id="vocab-form">
@@ -74,8 +91,10 @@
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="firebase-init.js"></script>
+    <script src="auth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="script.js"></script>
 </body>

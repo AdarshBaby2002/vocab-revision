@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Vocab Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container admin-container">
+        <header>
+            <h1>Admin Panel</h1>
+            <p>Review learners, answer history, and saved vocabulary.</p>
+            <div class="nav-actions">
+                <a href="index.html" class="btn-secondary">Home</a>
+                <a href="quiz.html" class="btn-secondary">Quiz</a>
+            </div>
+        </header>
+
+        <section id="auth-card" class="glass-card auth-card">
+            <div class="auth-topline">
+                <strong id="user-badge">Not signed in</strong>
+                <button type="button" id="sign-out-btn" class="btn-secondary" style="display: none;">Sign Out</button>
+            </div>
+            <form id="auth-form" class="auth-form">
+                <input type="email" id="auth-email" placeholder="Email" autocomplete="email" required>
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" required>
+                <div class="auth-actions">
+                    <button type="submit" id="sign-in-btn" class="btn-primary">Sign In</button>
+                    <button type="button" id="sign-up-btn" class="btn-secondary">Create Account</button>
+                </div>
+            </form>
+            <div id="auth-status"></div>
+        </section>
+
+        <section id="admin-content" class="admin-grid" style="display: none;">
+            <div class="glass-card stat-card">
+                <span>Learners</span>
+                <strong id="learner-count">0</strong>
+            </div>
+            <div class="glass-card stat-card">
+                <span>Saved Words</span>
+                <strong id="word-count">0</strong>
+            </div>
+            <div class="glass-card stat-card">
+                <span>Answer Attempts</span>
+                <strong id="attempt-count">0</strong>
+            </div>
+
+            <div class="glass-card admin-panel">
+                <div class="panel-heading">
+                    <h2>Learners</h2>
+                    <button type="button" id="refresh-admin-btn" class="btn-secondary">Refresh</button>
+                </div>
+                <div id="users-list" class="admin-list"></div>
+            </div>
+
+            <div class="glass-card admin-panel">
+                <div class="panel-heading">
+                    <h2>Recent Answers</h2>
+                    <select id="answer-filter">
+                        <option value="all">All Answers</option>
+                        <option value="wrong">Wrong Only</option>
+                        <option value="correct">Correct Only</option>
+                    </select>
+                </div>
+                <div id="attempts-list" class="admin-list"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="auth.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

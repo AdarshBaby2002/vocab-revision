@@ -8,8 +8,13 @@ const firebaseConfig = {
   appId: "1:10848885805:web:d4900ed0e4e924fc53eca4"
 };
 
+const ADMIN_UIDS = [
+  "8zSPXgapLjROs2l7Vs525czubDR2"
+];
+
 // Initialize Firebase using compat globally
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 const database = firebase.database();
+const auth = firebase.auth();

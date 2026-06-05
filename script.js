@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentVocabData = [];
     let lastEditedLanguage = 'de';
+    let currentUser = null;
+
+    initializeAuthUi({
+        required: true,
+        onSignedIn: (user) => {
+            currentUser = user;
+            form.style.display = 'block';
+            saveBtn.disabled = false;
+        },
+        onSignedOut: () => {
+            currentUser = null;
+            form.style.display = 'none';
+            saveBtn.disabled = true;
+        }
+    });
 
     // Load initial data from Firebase
     const vocabRef = database.ref('vocab');
@@ -314,6 +329,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const german = germanInput.value.trim();
         const english = englishInput.value.trim();
 
+        if (!currentUser) {
+            showError('Please sign in before saving vocabulary.');
+            return;
+        }
+
         if (!german || !english) return;
 
         // Visual feedback - saving
@@ -326,6 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 german: german,
                 english: english,
                 synonyms: selectedSynonymsToSave,
+                createdBy: currentUser.uid,
+                createdByEmail: currentUser.email || '',
                 timestamp: new Date().toISOString()
             });
 
