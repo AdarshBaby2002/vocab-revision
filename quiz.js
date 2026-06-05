@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const questionWord = document.getElementById('question-word');
     const answerInput = document.getElementById('answer');
     const checkBtn = document.getElementById('check-btn');
+    const idkBtn = document.getElementById('idk-btn');
+    const actionButtons = document.getElementById('action-buttons');
     const statusMessage = document.getElementById('status-message');
     const nextContainer = document.getElementById('next-container');
     const nextBtn = document.getElementById('next-btn');
@@ -299,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetQuestionUi() {
         answerInput.value = '';
         answerInput.disabled = false;
+        if (actionButtons) actionButtons.style.display = 'flex';
         checkBtn.style.display = 'flex';
         checkBtn.disabled = false;
         checkBtn.classList.remove('success');
@@ -416,12 +419,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return { allValidAnswerStrings, validAnswerTokens, questionSynonyms };
     }
 
-    quizForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-
+    function handleAnswerSubmission(userRawAnswer, isIdk = false) {
         const isDeToEn = currentQuestion.direction === 'German to English';
-        const userAnswer = normalizeAnswer(answerInput.value, !isDeToEn);
-        if (!userAnswer) return;
+        
+        let userAnswer = '';
+        if (!isIdk) {
+            userAnswer = normalizeAnswer(userRawAnswer, !isDeToEn);
+            if (!userAnswer) return;
+        }
 
         const { allValidAnswerStrings, validAnswerTokens, questionSynonyms } = collectValidAnswers(isDeToEn);
 
@@ -432,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const prog = quizProgress[currentQuestion.id];
         const now = Date.now();
 
-        const isCorrect = validAnswerTokens.has(userAnswer);
+        const isCorrect = !isIdk && validAnswerTokens.has(userAnswer);
 
         if (isCorrect) {
             checkBtn.classList.add('success');
@@ -468,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             prog.nextReview = now + interval;
         } else {
             const allCorrectAnswersJoined = Array.from(allValidAnswerStrings).join(' / ');
-            let msg = `Incorrect. Valid answers are:<br><strong>${allCorrectAnswersJoined}</strong>`;
+            let msg = isIdk ? `The correct answer is:<br><strong>${allCorrectAnswersJoined}</strong>` : `Incorrect. Valid answers are:<br><strong>${allCorrectAnswersJoined}</strong>`;
 
             const synonymsToShow = questionSynonyms.filter(syn => !allValidAnswerStrings.has(syn));
             if (synonymsToShow.length > 0) {
@@ -489,11 +494,24 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAttempt(isCorrect, userAnswer, allValidAnswerStrings);
 
         answerInput.disabled = true;
-        checkBtn.style.display = 'none';
+        if (actionButtons) actionButtons.style.display = 'none';
+        else checkBtn.style.display = 'none';
+        
         nextContainer.style.display = 'block';
-        addOnlineBtn.style.display = currentQuestion.source === 'online' ? 'block' : 'none';
+        addOnlineBtn.style.display = quizSourceSelect.value === 'online' ? 'block' : 'none';
         nextBtn.focus();
+    }
+
+    quizForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleAnswerSubmission(answerInput.value, false);
     });
+
+    if (idkBtn) {
+        idkBtn.addEventListener('click', () => {
+            handleAnswerSubmission('', true);
+        });
+    }
 
     addOnlineBtn.addEventListener('click', async () => {
         if (!currentQuestion || currentQuestion.source !== 'online') return;

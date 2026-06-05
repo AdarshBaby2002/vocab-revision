@@ -11,30 +11,32 @@
 </head>
 <body>
     <div class="container admin-container">
-        <header>
-            <h1>Admin Panel</h1>
-            <p>Review learners, answer history, and saved vocabulary.</p>
-            <div class="nav-actions">
-                <a href="index.html" class="btn-secondary">Home</a>
-                <a href="quiz.html" class="btn-secondary">Quiz</a>
+        <header class="app-header">
+            <div class="header-top">
+                <div class="logo">
+                    <h1>Admin Panel</h1>
+                </div>
+                <div id="auth-card" class="auth-compact">
+                    <div id="auth-form" class="auth-actions">
+                        <a href="signin.html" class="btn-secondary btn-small" style="text-decoration: none;">Sign In</a>
+                        <a href="signup.html" class="btn-primary btn-small" style="text-decoration: none;">Sign Up</a>
+                    </div>
+                    <div class="auth-topline" style="margin-bottom: 0;">
+                        <strong id="user-badge" class="user-badge">Not signed in</strong>
+                        <button type="button" id="sign-out-btn" class="btn-secondary btn-small" style="display: none;">Sign Out</button>
+                    </div>
+                    <div id="auth-status" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <div class="hero-section">
+                <p>Review learners, answer history, and saved vocabulary.</p>
+                <div class="hero-actions">
+                    <a href="index.html" class="btn-secondary" style="text-decoration: none;">Home</a>
+                    <a href="quiz.html" class="btn-secondary" style="text-decoration: none;">Quiz</a>
+                </div>
             </div>
         </header>
-
-        <section id="auth-card" class="glass-card auth-card">
-            <div class="auth-topline">
-                <strong id="user-badge">Not signed in</strong>
-                <button type="button" id="sign-out-btn" class="btn-secondary" style="display: none;">Sign Out</button>
-            </div>
-            <form id="auth-form" class="auth-form">
-                <input type="email" id="auth-email" placeholder="Email" autocomplete="email" required>
-                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" required>
-                <div class="auth-actions">
-                    <button type="submit" id="sign-in-btn" class="btn-primary">Sign In</button>
-                    <button type="button" id="sign-up-btn" class="btn-secondary">Create Account</button>
-                </div>
-            </form>
-            <div id="auth-status"></div>
-        </section>
 
         <section id="admin-content" class="admin-grid" style="display: none;">
             <div class="glass-card stat-card">
@@ -45,10 +47,6 @@
                 <span>Saved Words</span>
                 <strong id="word-count">0</strong>
             </div>
-            <div class="glass-card stat-card">
-                <span>Answer Attempts</span>
-                <strong id="attempt-count">0</strong>
-            </div>
 
             <div class="glass-card admin-panel">
                 <div class="panel-heading">
@@ -58,17 +56,6 @@
                 <div id="users-list" class="admin-list"></div>
             </div>
 
-            <div class="glass-card admin-panel">
-                <div class="panel-heading">
-                    <h2>Recent Answers</h2>
-                    <select id="answer-filter">
-                        <option value="all">All Answers</option>
-                        <option value="wrong">Wrong Only</option>
-                        <option value="correct">Correct Only</option>
-                    </select>
-                </div>
-                <div id="attempts-list" class="admin-list"></div>
-            </div>
         </section>
     </div>
 

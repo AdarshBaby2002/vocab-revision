@@ -2,14 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
     const learnerCount = document.getElementById('learner-count');
     const wordCount = document.getElementById('word-count');
-    const attemptCount = document.getElementById('attempt-count');
     const usersList = document.getElementById('users-list');
-    const attemptsList = document.getElementById('attempts-list');
     const refreshBtn = document.getElementById('refresh-admin-btn');
-    const answerFilter = document.getElementById('answer-filter');
 
     let usersCache = {};
-    let attemptsCache = [];
     let vocabCache = {};
 
     initializeAuthUi({
@@ -28,10 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.addEventListener('click', loadAdminData);
     }
 
-    if (answerFilter) {
-        answerFilter.addEventListener('change', renderAttempts);
-    }
-
     async function loadAdminData() {
         const [usersSnapshot, vocabSnapshot] = await Promise.all([
             database.ref('users').once('value'),
@@ -40,35 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         usersCache = usersSnapshot.val() || {};
         vocabCache = vocabSnapshot.val() || {};
-        attemptsCache = collectAttempts(usersCache);
 
         learnerCount.textContent = Object.keys(usersCache).length;
         wordCount.textContent = Object.keys(vocabCache).length;
-        attemptCount.textContent = attemptsCache.length;
 
         renderUsers();
-        renderAttempts();
     }
 
-    function collectAttempts(users) {
-        const attempts = [];
 
-        Object.entries(users).forEach(([uid, userData]) => {
-            const profile = userData.profile || {};
-            const userAttempts = userData.attempts || {};
-
-            Object.entries(userAttempts).forEach(([attemptId, attempt]) => {
-                attempts.push({
-                    attemptId,
-                    uid,
-                    email: profile.email || 'Unknown user',
-                    ...attempt
-                });
-            });
-        });
-
-        return attempts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    }
 
     function renderUsers() {
         usersList.innerHTML = '';
@@ -97,56 +68,62 @@ document.addEventListener('DOMContentLoaded', () => {
             const small = document.createElement('small');
             small.textContent = `UID: ${uid}`;
 
+            const actions = document.createElement('div');
+            actions.className = 'admin-actions';
+
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'btn-secondary btn-small';
+            resetBtn.textContent = 'Reset Password';
+            resetBtn.onclick = () => handleResetPassword(profile.email);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-danger btn-small';
+            deleteBtn.textContent = 'Delete Data';
+            deleteBtn.onclick = () => handleDeleteUser(uid, profile.email);
+
+            if (profile.email) actions.appendChild(resetBtn);
+            actions.appendChild(deleteBtn);
+
             row.appendChild(title);
             row.appendChild(meta);
             row.appendChild(small);
+            row.appendChild(actions);
             usersList.appendChild(row);
         });
     }
 
-    function renderAttempts() {
-        attemptsList.innerHTML = '';
 
-        const filter = answerFilter.value;
-        const attempts = attemptsCache.filter(attempt => {
-            if (filter === 'correct') return attempt.correct;
-            if (filter === 'wrong') return !attempt.correct;
-            return true;
-        }).slice(0, 75);
-
-        if (attempts.length === 0) {
-            attemptsList.appendChild(emptyState('No matching answers yet.'));
-            return;
-        }
-
-        attempts.forEach(attempt => {
-            const row = document.createElement('article');
-            row.className = `admin-row ${attempt.correct ? 'answer-correct' : 'answer-wrong'}`;
-
-            const title = document.createElement('strong');
-            title.textContent = `${attempt.email} - ${attempt.correct ? 'Correct' : 'Wrong'}`;
-
-            const question = document.createElement('span');
-            question.textContent = `${attempt.direction}: ${attempt.questionText}`;
-
-            const answer = document.createElement('span');
-            answer.textContent = `Answered: ${attempt.userAnswer || '(blank)'} | Expected: ${attempt.correctAnswers || ''}`;
-
-            const when = document.createElement('small');
-            when.textContent = attempt.createdAt ? new Date(attempt.createdAt).toLocaleString() : '';
-
-            row.appendChild(title);
-            row.appendChild(question);
-            row.appendChild(answer);
-            row.appendChild(when);
-            attemptsList.appendChild(row);
-        });
-    }
 
     function emptyState(message) {
         const element = document.createElement('p');
         element.className = 'empty-state';
         element.textContent = message;
         return element;
+    }
+
+    async function handleResetPassword(email) {
+        if (!email) return;
+        if (!confirm(`Send password reset email to ${email}?`)) return;
+
+        try {
+            await auth.sendPasswordResetEmail(email);
+            alert(`Password reset email sent to ${email}.`);
+        } catch (error) {
+            console.error('Error sending reset email:', error);
+            alert('Failed to send reset email: ' + error.message);
+        }
+    }
+
+    async function handleDeleteUser(uid, email) {
+        if (!confirm(`Are you absolutely sure you want to delete all data for user ${email || uid}? This cannot be undone.`)) return;
+
+        try {
+            await database.ref(`users/${uid}`).remove();
+            alert('User data deleted successfully.');
+            loadAdminData();
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            alert('Failed to delete user data: ' + error.message);
+        }
     }
 });

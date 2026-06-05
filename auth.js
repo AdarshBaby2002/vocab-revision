@@ -3,7 +3,8 @@ function initializeAuthUi(options = {}) {
         required = true,
         adminOnly = false,
         onSignedIn = () => {},
-        onSignedOut = () => {}
+        onSignedOut = () => {},
+        formAction = 'sign-in'
     } = options;
 
     const authCard = document.getElementById('auth-card');
@@ -15,6 +16,7 @@ function initializeAuthUi(options = {}) {
     const signOutBtn = document.getElementById('sign-out-btn');
     const authStatus = document.getElementById('auth-status');
     const userBadge = document.getElementById('user-badge');
+    const adminLink = document.getElementById('admin-link');
 
     async function getAdminStatus(user) {
         if (!user) return false;
@@ -79,10 +81,10 @@ function initializeAuthUi(options = {}) {
         }
     }
 
-    if (authForm) {
+    if (authForm && authForm.tagName === 'FORM') {
         authForm.addEventListener('submit', (event) => {
             event.preventDefault();
-            handleAuthAction('sign-in');
+            handleAuthAction(formAction);
         });
     }
 
@@ -100,9 +102,14 @@ function initializeAuthUi(options = {}) {
 
     auth.onAuthStateChanged(async (user) => {
         if (!user) {
+            if (required) {
+                window.location.href = 'signin.html';
+                return;
+            }
             if (authCard) authCard.style.display = 'block';
-            if (authForm) authForm.style.display = 'grid';
+            if (authForm) authForm.style.display = '';
             if (signOutBtn) signOutBtn.style.display = 'none';
+            if (adminLink) adminLink.style.display = 'none';
             if (userBadge) userBadge.textContent = 'Not signed in';
             setAuthStatus(required ? 'Sign in to save your own progress.' : '');
             onSignedOut();
@@ -116,6 +123,7 @@ function initializeAuthUi(options = {}) {
             if (authCard) authCard.style.display = 'block';
             if (authForm) authForm.style.display = 'none';
             if (signOutBtn) signOutBtn.style.display = 'inline-flex';
+            if (adminLink) adminLink.style.display = 'none';
             if (userBadge) userBadge.textContent = user.email;
             setAuthStatus('This account is signed in, but it is not an admin account.', 'status-error');
             onSignedOut(user);
@@ -125,6 +133,7 @@ function initializeAuthUi(options = {}) {
         if (authCard) authCard.style.display = 'block';
         if (authForm) authForm.style.display = 'none';
         if (signOutBtn) signOutBtn.style.display = 'inline-flex';
+        if (adminLink) adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
         if (userBadge) userBadge.textContent = user.email;
         setAuthStatus(adminOnly ? 'Admin access granted.' : 'Signed in. Your quiz progress is private to this account.', 'status-success');
         onSignedIn(user, { isAdmin });

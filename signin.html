@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sign In to Vocab Revision">
+    <title>Sign In - Vocab Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-page-container {
+            max-width: 400px;
+            margin: 4rem auto;
+        }
+        .auth-footer {
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .auth-footer p {
+            margin: 0.5rem 0;
+        }
+        .auth-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container auth-page-container">
+        <header>
+            <h1>Sign In</h1>
+            <p>Access your saved vocabulary.</p>
+        </header>
+
+        <section id="auth-card" class="glass-card auth-card" style="padding: 2.5rem 2rem; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
+            <form id="auth-form" class="auth-form" style="gap: 1.25rem;">
+                <input type="email" id="auth-email" placeholder="Email Address" autocomplete="email" required style="border-radius: 16px;">
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" required style="border-radius: 16px;">
+                <div class="auth-actions" style="margin-top: 0.5rem; display: block;">
+                    <button type="submit" id="sign-in-btn" class="btn-primary" style="width: 100%; border-radius: 16px; padding: 1rem;">Sign In</button>
+                </div>
+            </form>
+            <div id="auth-status"></div>
+            
+            <div class="auth-footer" style="margin-top: 2rem;">
+                <p style="color: var(--text-secondary);">Don't have an account? <a href="signup.html" style="color: #c084fc;">Sign Up</a></p>
+                <p style="margin-top: 1.5rem;"><a href="index.html" style="color: var(--text-secondary); font-weight: 400; font-size: 0.85rem; text-decoration: underline;">Back to Home</a></p>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        initializeAuthUi({
+            required: false,
+            formAction: 'sign-in',
+            onSignedIn: () => {
+                window.location.href = 'index.html';
+            }
+        });
+    </script>
+</body>
+</html>
