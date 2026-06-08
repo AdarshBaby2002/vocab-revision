@@ -102,8 +102,36 @@ document.addEventListener('DOMContentLoaded', () => {
         return lower.startsWith('der ') || lower.startsWith('die ') || lower.startsWith('das ');
     }
 
+    function shouldAutoAddGermanArticle(word) {
+        const trimmed = (word || '').trim();
+        return trimmed && hasGermanArticle(trimmed) === false && trimmed[0] === trimmed[0].toUpperCase();
+    }
+
     function removeGermanArticle(word) {
         return word.trim().replace(/^(der|die|das)\s+/i, '');
+    }
+
+    function normalizeText(value) {
+        return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function normalizeGermanAnswer(value) {
+        return normalizeText(removeGermanArticle(value || ''));
+    }
+
+    function getGermanAnswers(item) {
+        const answers = [item.german, ...(Array.isArray(item.synonyms) ? item.synonyms : [])];
+        return answers.filter(answer => answer && answer.trim());
+    }
+
+    function uniqueGermanAnswers(answers) {
+        const seen = new Set();
+        return answers.filter(answer => {
+            const normalized = normalizeGermanAnswer(answer);
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+        });
     }
 
     function getGermanArticlePrefix(word) {
@@ -129,21 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 let translatedText = data[0].map(x => x[0]).join('');
                 targetInput.value = translatedText;
                 
-                if (tl === 'de' && !hasGermanArticle(translatedText)) {
+                if (tl === 'de' && shouldAutoAddGermanArticle(translatedText)) {
                     const article = getGermanArticleFromTranslateData(data) || await getGermanArticle(translatedText);
                     translatedText = article + translatedText;
                     targetInput.value = translatedText;
                 }
             }
-            
-            if (sl === 'de' && !hasGermanArticle(text)) {
-                const sourceInput = document.getElementById('german');
-                const article = await getGermanArticle(text);
-                if (article) {
-                    sourceInput.value = article + text;
-                }
-            }
-            
+
             if (data && data[1]) {
                 renderDictionary(data[1], sl);
             }
@@ -159,13 +179,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     async function addSynonym(word) {
-        if (!selectedSynonymsToSave.includes(word)) {
+        const normalizedWord = normalizeGermanAnswer(word);
+        const selectedAlreadyHasWord = selectedSynonymsToSave.some(syn => normalizeGermanAnswer(syn) === normalizedWord);
+
+        if (!selectedAlreadyHasWord) {
             let processedWord = word;
-            if (!hasGermanArticle(word)) {
+            if (shouldAutoAddGermanArticle(word)) {
                 const article = await getGermanArticle(word);
                 processedWord = article + word;
             }
-            if (!selectedSynonymsToSave.includes(processedWord)) {
+            const processedAlreadyExists = selectedSynonymsToSave.some(syn => normalizeGermanAnswer(syn) === normalizeGermanAnswer(processedWord));
+            if (!processedAlreadyExists && normalizeGermanAnswer(processedWord) !== normalizeGermanAnswer(germanInput.value)) {
                 selectedSynonymsToSave.push(processedWord);
                 renderSelectedSynonyms();
             }
@@ -340,16 +364,47 @@ document.addEventListener('DOMContentLoaded', () => {
         saveBtn.disabled = true;
 
         try {
-            // Add new word to Firebase
-            await database.ref('vocab').push({
-                id: Date.now(),
-                german: german,
-                english: english,
-                synonyms: selectedSynonymsToSave,
-                createdBy: currentUser.uid,
-                createdByEmail: currentUser.email || '',
-                timestamp: new Date().toISOString()
-            });
+            const normalizedEnglish = normalizeText(english);
+            const submittedAnswers = uniqueGermanAnswers([german, ...selectedSynonymsToSave]);
+            const matchingItems = currentVocabData.filter(item => normalizeText(item.english) === normalizedEnglish);
+            const matchingItem = matchingItems[0];
+
+            if (matchingItem) {
+                const existingAnswers = matchingItems.flatMap(getGermanAnswers);
+                const existingAnswerKeys = new Set(existingAnswers.map(normalizeGermanAnswer));
+                const newAnswers = submittedAnswers.filter(answer => !existingAnswerKeys.has(normalizeGermanAnswer(answer)));
+
+                if (newAnswers.length === 0) {
+                    showError('This vocab and synonym already exists.');
+                    return;
+                }
+
+                const updatedSynonyms = uniqueGermanAnswers([
+                    ...(Array.isArray(matchingItem.synonyms) ? matchingItem.synonyms : []),
+                    ...newAnswers
+                ]).filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(matchingItem.german));
+
+                await database.ref(`vocab/${matchingItem.firebaseKey}`).update({
+                    synonyms: updatedSynonyms,
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: currentUser.uid,
+                    updatedByEmail: currentUser.email || ''
+                });
+            } else {
+                const synonyms = uniqueGermanAnswers(selectedSynonymsToSave)
+                    .filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(german));
+
+                // Add new word to Firebase
+                await database.ref('vocab').push({
+                    id: Date.now(),
+                    german: german,
+                    english: english,
+                    synonyms: synonyms,
+                    createdBy: currentUser.uid,
+                    createdByEmail: currentUser.email || '',
+                    timestamp: new Date().toISOString()
+                });
+            }
 
             // Show success state
             showSuccess();

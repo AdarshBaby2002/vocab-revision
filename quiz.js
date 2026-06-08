@@ -235,9 +235,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return word.trim().replace(/^(der|die|das)\s+/i, '');
     }
 
+    function normalizeText(value) {
+        return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function normalizeGermanAnswer(value) {
+        return normalizeText(removeGermanArticle(value || ''));
+    }
+
+    function getGermanAnswers(item) {
+        const answers = [item.german, ...(Array.isArray(item.synonyms) ? item.synonyms : [])];
+        return answers.filter(answer => answer && answer.trim());
+    }
+
     function normalizeAnswer(answer, isGermanAnswer) {
         const normalized = answer.trim().toLowerCase();
-        return isGermanAnswer ? removeGermanArticle(normalized) : normalized;
+        return isGermanAnswer ? normalizeGermanAnswer(normalized) : normalizeText(normalized);
     }
 
     async function translateEnglishToGerman(english) {
@@ -386,10 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             answer.split(',').forEach(token => {
                 const cleanToken = token.trim();
                 if (!cleanToken) return;
-                validAnswerTokens.add(cleanToken.toLowerCase());
-                if (!isDeToEn) {
-                    validAnswerTokens.add(removeGermanArticle(cleanToken).toLowerCase());
-                }
+                validAnswerTokens.add(normalizeAnswer(cleanToken, !isDeToEn));
             });
         };
 
@@ -520,6 +530,19 @@ document.addEventListener('DOMContentLoaded', () => {
         addOnlineBtn.textContent = 'Adding...';
 
         try {
+            const existingItem = vocabData.find(item => {
+                const sameEnglish = normalizeText(item.english) === normalizeText(currentQuestion.vocabItem.english);
+                const sameGermanAnswer = getGermanAnswers(item).some(answer => {
+                    return normalizeGermanAnswer(answer) === normalizeGermanAnswer(currentQuestion.vocabItem.german);
+                });
+                return sameEnglish && sameGermanAnswer;
+            });
+
+            if (existingItem) {
+                addOnlineBtn.textContent = 'Already in DB';
+                return;
+            }
+
             await database.ref('vocab').push({
                 id: Date.now(),
                 german: currentQuestion.vocabItem.german,

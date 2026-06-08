@@ -88,7 +88,8 @@ label {
     letter-spacing: 0.05em;
 }
 
-input {
+input,
+textarea {
     background: var(--input-bg);
     border: 1px solid var(--input-border);
     border-radius: 12px;
@@ -100,12 +101,20 @@ input {
     outline: none;
 }
 
-input:focus {
+textarea {
+    min-height: 260px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+input:focus,
+textarea:focus {
     border-color: var(--input-focus);
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
     color: rgba(255, 255, 255, 0.3);
 }
 
@@ -605,4 +614,14 @@ select {
     display: flex;
     gap: 0.5rem;
     margin-top: 0.75rem;
+}
+
+.import-actions {
+    flex-wrap: wrap;
+}
+
+.admin-status {
+    min-height: 1.25rem;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
 }

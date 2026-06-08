@@ -50,6 +50,22 @@
 
             <div class="glass-card admin-panel">
                 <div class="panel-heading">
+                    <h2>Import Vocabulary</h2>
+                    <button type="button" id="clear-vocab-btn" class="btn-danger btn-small">Clear All Vocabulary</button>
+                </div>
+                <div class="input-group">
+                    <label for="import-text">Vocabulary Text</label>
+                    <textarea id="import-text" rows="12" placeholder="benutzen - to use&#10;preiswert / kostengunstig - affordable&#10;die U-Bahn / die Strassenbahn - subway / tram"></textarea>
+                </div>
+                <div class="admin-actions import-actions">
+                    <button type="button" id="import-vocab-btn" class="btn-primary btn-small">Import to DB</button>
+                    <button type="button" id="clear-import-btn" class="btn-secondary btn-small">Clear Text</button>
+                </div>
+                <div id="import-status" class="admin-status"></div>
+            </div>
+
+            <div class="glass-card admin-panel">
+                <div class="panel-heading">
                     <h2>Learners</h2>
                     <button type="button" id="refresh-admin-btn" class="btn-secondary">Refresh</button>
                 </div>
