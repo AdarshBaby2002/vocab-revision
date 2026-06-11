@@ -156,6 +156,37 @@ select {
     font-size: 0.95rem;
 }
 
+.umlaut-help {
+    margin-top: 0.75rem;
+    background: rgba(0, 0, 0, 0.16);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    color: var(--text-secondary);
+}
+
+.umlaut-help summary {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.umlaut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.5rem;
+    padding: 0 1rem 1rem;
+    font-size: 0.9rem;
+}
+
+.umlaut-grid span {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
 .icon-swap {
     display: flex;
     justify-content: center;
