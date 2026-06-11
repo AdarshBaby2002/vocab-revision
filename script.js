@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusMessage = document.getElementById('status-message');
     const vocabList = document.getElementById('vocab-list');
     const exportBtn = document.getElementById('export-btn');
+    const importBtn = document.getElementById('import-btn');
+    const importFile = document.getElementById('import-file');
 
     let currentVocabData = [];
     let lastEditedLanguage = 'de';
@@ -132,6 +134,97 @@ document.addEventListener('DOMContentLoaded', () => {
             seen.add(normalized);
             return true;
         });
+    }
+
+    function getImportItems(parsedJson) {
+        if (Array.isArray(parsedJson)) return parsedJson;
+        if (parsedJson && Array.isArray(parsedJson.vocab)) return parsedJson.vocab;
+        if (parsedJson && parsedJson.vocab && typeof parsedJson.vocab === 'object') {
+            return Object.values(parsedJson.vocab);
+        }
+        if (parsedJson && typeof parsedJson === 'object') return Object.values(parsedJson);
+        return [];
+    }
+
+    function cleanImportItem(item) {
+        if (!item || typeof item !== 'object') return null;
+
+        const german = String(item.german || '').trim();
+        const english = String(item.english || '').trim();
+        const synonyms = Array.isArray(item.synonyms)
+            ? item.synonyms.map(syn => String(syn || '').trim()).filter(Boolean)
+            : [];
+
+        if (!german || !english) return null;
+        return { german, english, synonyms };
+    }
+
+    async function importVocabItems(importItems) {
+        const updates = {};
+        const localVocab = currentVocabData.map(item => ({ ...item }));
+        const stats = { created: 0, merged: 0, skipped: 0 };
+        const timestampBase = Date.now();
+
+        importItems.forEach(rawItem => {
+            const entry = cleanImportItem(rawItem);
+            if (!entry) {
+                stats.skipped += 1;
+                return;
+            }
+
+            const normalizedEnglish = normalizeText(entry.english);
+            const submittedAnswers = uniqueGermanAnswers([entry.german, ...entry.synonyms]);
+            const matchingItems = localVocab.filter(item => normalizeText(item.english) === normalizedEnglish);
+            const matchingItem = matchingItems[0];
+
+            if (matchingItem) {
+                const existingAnswers = matchingItems.flatMap(getGermanAnswers);
+                const existingAnswerKeys = new Set(existingAnswers.map(normalizeGermanAnswer));
+                const newAnswers = submittedAnswers.filter(answer => !existingAnswerKeys.has(normalizeGermanAnswer(answer)));
+
+                if (newAnswers.length === 0) {
+                    stats.skipped += 1;
+                    return;
+                }
+
+                const updatedSynonyms = uniqueGermanAnswers([
+                    ...(Array.isArray(matchingItem.synonyms) ? matchingItem.synonyms : []),
+                    ...newAnswers
+                ]).filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(matchingItem.german));
+
+                updates[`vocab/${matchingItem.firebaseKey}/synonyms`] = updatedSynonyms;
+                updates[`vocab/${matchingItem.firebaseKey}/updatedAt`] = new Date().toISOString();
+                updates[`vocab/${matchingItem.firebaseKey}/updatedBy`] = currentUser.uid;
+                updates[`vocab/${matchingItem.firebaseKey}/updatedByEmail`] = currentUser.email || '';
+
+                matchingItem.synonyms = updatedSynonyms;
+                stats.merged += 1;
+                return;
+            }
+
+            const newKey = database.ref('vocab').push().key;
+            const newItem = {
+                id: timestampBase + stats.created,
+                german: entry.german,
+                english: entry.english,
+                synonyms: uniqueGermanAnswers(entry.synonyms)
+                    .filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(entry.german)),
+                createdBy: currentUser.uid,
+                createdByEmail: currentUser.email || '',
+                source: 'json-import',
+                timestamp: new Date().toISOString()
+            };
+
+            updates[`vocab/${newKey}`] = newItem;
+            localVocab.push({ firebaseKey: newKey, ...newItem });
+            stats.created += 1;
+        });
+
+        if (Object.keys(updates).length > 0) {
+            await database.ref().update(updates);
+        }
+
+        return stats;
     }
 
     function getGermanArticlePrefix(word) {
@@ -435,6 +528,42 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(downloadAnchorNode); // required for firefox
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
+        });
+    }
+
+    if (importBtn && importFile) {
+        importBtn.addEventListener('click', () => {
+            if (!currentUser) {
+                showError('Please sign in before importing vocabulary.');
+                return;
+            }
+            importFile.click();
+        });
+
+        importFile.addEventListener('change', async () => {
+            const file = importFile.files && importFile.files[0];
+            if (!file) return;
+
+            importBtn.disabled = true;
+            try {
+                const parsedJson = JSON.parse(await file.text());
+                const importItems = getImportItems(parsedJson);
+
+                if (importItems.length === 0) {
+                    showError('No vocabulary items found in that JSON file.');
+                    return;
+                }
+
+                const stats = await importVocabItems(importItems);
+                statusMessage.textContent = `Import complete: ${stats.created} added, ${stats.merged} merged, ${stats.skipped} skipped.`;
+                statusMessage.className = 'status-success';
+            } catch (error) {
+                console.error('Import failed:', error);
+                showError('Import failed. Please choose a valid vocab JSON file.');
+            } finally {
+                importBtn.disabled = false;
+                importFile.value = '';
+            }
         });
     }
 

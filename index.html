@@ -82,9 +82,11 @@
         <div class="recent-list-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h2 style="margin-bottom: 0;">Recent Words</h2>
-                <button id="export-btn" style="background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; transition: background 0.3s;">
-                    Export JSON
-                </button>
+                <div class="json-actions">
+                    <button type="button" id="import-btn" class="btn-secondary">Import JSON</button>
+                    <button type="button" id="export-btn" class="btn-secondary">Export JSON</button>
+                    <input type="file" id="import-file" accept="application/json,.json" style="display: none;">
+                </div>
             </div>
             <ul id="vocab-list" class="vocab-list">
                 <!-- Items will be injected here -->

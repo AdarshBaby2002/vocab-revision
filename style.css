@@ -262,6 +262,14 @@ select {
     color: var(--text-primary);
 }
 
+.json-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .vocab-list {
     list-style: none;
     display: flex;
