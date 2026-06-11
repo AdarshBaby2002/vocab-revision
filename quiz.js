@@ -253,6 +253,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return isGermanAnswer ? normalizeGermanAnswer(normalized) : normalizeText(normalized);
     }
 
+    function splitAnswerAlternatives(answer) {
+        return answer
+            .split(/[,/]/)
+            .map(token => token.trim())
+            .filter(Boolean);
+    }
+
     async function translateEnglishToGerman(english) {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=de&dt=t&dt=bd&q=${encodeURIComponent(english)}`;
         const response = await fetch(url);
@@ -396,9 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const addAnswer = (answer) => {
             if (!answer) return;
             allValidAnswerStrings.add(answer.trim());
-            answer.split(',').forEach(token => {
-                const cleanToken = token.trim();
-                if (!cleanToken) return;
+            splitAnswerAlternatives(answer).forEach(cleanToken => {
                 validAnswerTokens.add(normalizeAnswer(cleanToken, !isDeToEn));
             });
         };
@@ -453,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
             checkBtn.classList.add('success');
 
             const otherValidStrings = Array.from(allValidAnswerStrings).filter(str => {
-                const tokens = str.split(',').map(s => normalizeAnswer(s, !isDeToEn));
+                const tokens = splitAnswerAlternatives(str).map(s => normalizeAnswer(s, !isDeToEn));
                 return !tokens.includes(userAnswer);
             });
 
