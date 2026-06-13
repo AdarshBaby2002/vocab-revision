@@ -23,6 +23,11 @@
           "$attemptId": {
             ".validate": "newData.hasChildren(['createdAt', 'correct', 'direction', 'questionText', 'userAnswer', 'correctAnswers'])"
           }
+        },
+        "writingAttempts": {
+          "$attemptId": {
+            ".validate": "newData.hasChildren(['createdAt', 'level', 'german', 'prompt', 'userText', 'score', 'checksPassed', 'checksTotal'])"
+          }
         }
       }
     },
