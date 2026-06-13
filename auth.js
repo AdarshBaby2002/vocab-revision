@@ -55,10 +55,38 @@ function initializeAuthUi(options = {}) {
         authStatus.className = className;
     }
 
-    function setBusy(isBusy) {
+    function setButtonText(button, text) {
+        if (!button) return;
+        const label = button.querySelector('.btn-text');
+        if (label) {
+            label.textContent = text;
+            return;
+        }
+        button.textContent = text;
+    }
+
+    function getActionButton(action) {
+        return action === 'sign-up' ? signUpBtn : signInBtn;
+    }
+
+    function getButtonLoadingText(action) {
+        return action === 'sign-up' ? 'Creating account...' : 'Signing in...';
+    }
+
+    function setBusy(isBusy, activeAction = formAction) {
         [signInBtn, signUpBtn].forEach(btn => {
             if (btn) btn.disabled = isBusy;
         });
+
+        const activeButton = getActionButton(activeAction);
+        if (!activeButton) return;
+
+        if (!activeButton.dataset.defaultText) {
+            const label = activeButton.querySelector('.btn-text');
+            activeButton.dataset.defaultText = label ? label.textContent : activeButton.textContent;
+        }
+
+        setButtonText(activeButton, isBusy ? getButtonLoadingText(activeAction) : activeButton.dataset.defaultText);
     }
 
     async function ensureUserProfile(user, isAdmin) {
@@ -84,8 +112,8 @@ function initializeAuthUi(options = {}) {
             return;
         }
 
-        setBusy(true);
-        setAuthStatus(action === 'sign-up' ? 'Creating account...' : 'Signing in...');
+        setBusy(true, action);
+        setAuthStatus('');
 
         try {
             if (action === 'sign-up') {
@@ -96,7 +124,7 @@ function initializeAuthUi(options = {}) {
         } catch (error) {
             setAuthStatus(error.message || 'Authentication failed.', 'status-error');
         } finally {
-            setBusy(false);
+            setBusy(false, action);
         }
     }
 
