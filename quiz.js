@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const quizModeSelect = document.getElementById('quiz-mode');
     const quizSourceSelect = document.getElementById('quiz-source');
     const quizLevelSelect = document.getElementById('quiz-level');
+    const quizStatsCard = document.getElementById('quiz-stats-card');
+    const quizStatsContent = document.getElementById('quiz-stats-content');
 
     const ONLINE_WORD_BANK = {
         A1: ['apple', 'bread', 'water', 'house', 'school', 'book', 'family', 'friend', 'day', 'night', 'city', 'food', 'name', 'room', 'table', 'chair', 'milk', 'coffee'],
@@ -31,10 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null;
     let vocabRef = null;
     let progressRef = null;
+    let attemptsRef = null;
 
     let dataLoaded = false;
     let progressLoaded = false;
+    let attemptsLoaded = false;
     let quizStarted = false;
+    let readFailed = false;
+    let userAttempts = {};
 
     loadPreferences();
 
@@ -48,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stopUserSession();
             quizForm.style.display = 'none';
             noDataMsg.style.display = 'block';
+            noDataMsg.className = '';
             noDataMsg.textContent = 'Sign in to load your saved progress and answer history.';
         }
     });
@@ -58,12 +65,21 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = user;
         dataLoaded = false;
         progressLoaded = false;
+        attemptsLoaded = false;
         quizStarted = false;
+        readFailed = false;
         vocabData = [];
         quizProgress = {};
+        userAttempts = {};
+        quizForm.style.display = 'none';
+        if (quizStatsCard) quizStatsCard.style.display = 'none';
+        noDataMsg.style.display = 'block';
+        noDataMsg.className = '';
+        noDataMsg.textContent = 'Loading your vocabulary and quiz progress...';
 
         vocabRef = database.ref('vocab');
         progressRef = database.ref(`users/${user.uid}/progress`);
+        attemptsRef = database.ref(`users/${user.uid}/attempts`);
 
         vocabRef.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -77,28 +93,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             dataLoaded = true;
+            if (attemptsLoaded) renderUserStats();
             checkAndStart();
+        }, (error) => {
+            showReadError(`Could not load vocabulary: ${error.message}`);
         });
 
         progressRef.on('value', (snapshot) => {
             quizProgress = snapshot.val() || {};
             progressLoaded = true;
             checkAndStart();
+        }, (error) => {
+            showReadError(`Could not load quiz progress: ${error.message}`);
+        });
+
+        attemptsRef.on('value', (snapshot) => {
+            userAttempts = snapshot.val() || {};
+            attemptsLoaded = true;
+            renderUserStats();
+            checkAndStart();
+        }, (error) => {
+            showReadError(`Could not load answer history: ${error.message}`);
         });
     }
 
     function stopUserSession() {
         if (vocabRef) vocabRef.off();
         if (progressRef) progressRef.off();
+        if (attemptsRef) attemptsRef.off();
         vocabRef = null;
         progressRef = null;
+        attemptsRef = null;
         currentUser = null;
         dataLoaded = false;
         progressLoaded = false;
+        attemptsLoaded = false;
         quizStarted = false;
+        readFailed = false;
         vocabData = [];
         quizProgress = {};
+        userAttempts = {};
         currentQuestion = null;
+        if (quizStatsCard) quizStatsCard.style.display = 'none';
     }
 
     function loadPreferences() {
@@ -118,10 +154,218 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function checkAndStart() {
-        if (!dataLoaded || !progressLoaded || quizStarted) return;
+        if (readFailed || !dataLoaded || !progressLoaded || !attemptsLoaded || quizStarted) return;
 
         quizStarted = true;
         loadNextQuestion();
+    }
+
+    function showReadError(message) {
+        readFailed = true;
+        quizStarted = false;
+        quizForm.style.display = 'none';
+        noDataMsg.style.display = 'block';
+        noDataMsg.textContent = message;
+        noDataMsg.className = 'status-error';
+        if (quizStatsCard) quizStatsCard.style.display = 'none';
+        hidePageLoader();
+    }
+
+    function buildVocabById() {
+        const byId = {};
+        vocabData.forEach(item => {
+            if (item && item.id !== undefined && item.id !== null) {
+                byId[String(item.id)] = item;
+            }
+        });
+        return byId;
+    }
+
+    function getAttemptLevel(attempt, vocabById) {
+        if (attempt.level) return attempt.level;
+        const vocabItem = vocabById[String(attempt.vocabId || '')];
+        if (vocabItem && vocabItem.level) return vocabItem.level;
+        return attempt.source === 'online' ? 'Online' : 'Saved';
+    }
+
+    function getAttemptStats(attempts) {
+        const vocabById = buildVocabById();
+        const values = Object.values(attempts || {}).filter(attempt => attempt && typeof attempt === 'object');
+        const stats = {
+            total: values.length,
+            correct: values.filter(attempt => attempt.correct === true).length,
+            wrong: values.filter(attempt => attempt.correct !== true).length,
+            byLevel: {},
+            wrongGroups: {}
+        };
+
+        values.forEach(attempt => {
+            const level = getAttemptLevel(attempt, vocabById);
+            if (!stats.byLevel[level]) {
+                stats.byLevel[level] = { attempts: 0, correct: 0, wrong: 0 };
+            }
+
+            stats.byLevel[level].attempts += 1;
+            if (attempt.correct === true) {
+                stats.byLevel[level].correct += 1;
+                return;
+            }
+
+            stats.byLevel[level].wrong += 1;
+
+            const questionId = attempt.questionId || `${attempt.direction || ''}:${attempt.questionText || ''}`;
+            const userAnswer = String(attempt.userAnswer || '').trim() || 'I do not know';
+            const wrongKey = [
+                questionId,
+                normalizeText(userAnswer),
+                attempt.correctAnswers || ''
+            ].join('|');
+
+            if (!stats.wrongGroups[wrongKey]) {
+                stats.wrongGroups[wrongKey] = {
+                    questionText: attempt.questionText || 'Unknown question',
+                    direction: attempt.direction || 'Unknown direction',
+                    userAnswer,
+                    correctAnswers: attempt.correctAnswers || 'Unknown answer',
+                    level,
+                    count: 0,
+                    lastAt: 0
+                };
+            }
+
+            stats.wrongGroups[wrongKey].count += 1;
+            stats.wrongGroups[wrongKey].lastAt = Math.max(
+                stats.wrongGroups[wrongKey].lastAt,
+                Number(attempt.createdAt || 0)
+            );
+        });
+
+        return stats;
+    }
+
+    function appendStatPill(container, label, value, className = '') {
+        const pill = document.createElement('span');
+        pill.className = className ? `stat-pill ${className}` : 'stat-pill';
+
+        const pillLabel = document.createElement('span');
+        pillLabel.textContent = label;
+
+        const pillValue = document.createElement('strong');
+        pillValue.textContent = value;
+
+        pill.appendChild(pillLabel);
+        pill.appendChild(pillValue);
+        container.appendChild(pill);
+    }
+
+    function renderLevelStats(stats) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'level-stats';
+
+        Object.entries(stats.byLevel)
+            .sort(([levelA], [levelB]) => levelA.localeCompare(levelB))
+            .forEach(([level, levelStats]) => {
+                const row = document.createElement('div');
+                row.className = 'level-stat-row';
+
+                const label = document.createElement('strong');
+                label.textContent = level;
+
+                const values = document.createElement('span');
+                values.textContent = `${levelStats.attempts} attempts | ${levelStats.correct} correct | ${levelStats.wrong} wrong`;
+
+                row.appendChild(label);
+                row.appendChild(values);
+                wrapper.appendChild(row);
+            });
+
+        if (!wrapper.children.length) {
+            const empty = document.createElement('span');
+            empty.className = 'empty-inline';
+            empty.textContent = 'No attempts yet.';
+            wrapper.appendChild(empty);
+        }
+
+        return wrapper;
+    }
+
+    function renderWrongAnswerDetails(stats) {
+        const groups = Object.values(stats.wrongGroups)
+            .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt);
+
+        const details = document.createElement('details');
+        details.className = 'wrong-answer-details';
+
+        const summary = document.createElement('summary');
+        summary.textContent = groups.length
+            ? `Wrong answers (${groups.length} repeated answer ${groups.length === 1 ? 'group' : 'groups'})`
+            : 'Wrong answers';
+        details.appendChild(summary);
+
+        if (groups.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'empty-state';
+            empty.textContent = 'No wrong answers recorded.';
+            details.appendChild(empty);
+            return details;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'wrong-answer-list';
+
+        groups.forEach(group => {
+            const item = document.createElement('article');
+            item.className = 'wrong-answer-item';
+
+            const header = document.createElement('div');
+            header.className = 'wrong-answer-header';
+
+            const question = document.createElement('strong');
+            question.textContent = group.questionText;
+
+            const count = document.createElement('span');
+            count.className = 'wrong-count';
+            count.textContent = `${group.count}x`;
+
+            header.appendChild(question);
+            header.appendChild(count);
+
+            const meta = document.createElement('small');
+            meta.textContent = `${group.level} | ${group.direction}`;
+
+            const answer = document.createElement('span');
+            answer.textContent = `Wrong answer: ${group.userAnswer}`;
+
+            const correct = document.createElement('span');
+            correct.textContent = `Correct: ${group.correctAnswers}`;
+
+            item.appendChild(header);
+            item.appendChild(meta);
+            item.appendChild(answer);
+            item.appendChild(correct);
+            list.appendChild(item);
+        });
+
+        details.appendChild(list);
+        return details;
+    }
+
+    function renderUserStats() {
+        if (!quizStatsCard || !quizStatsContent) return;
+
+        quizStatsContent.innerHTML = '';
+        const stats = getAttemptStats(userAttempts);
+
+        const statGrid = document.createElement('div');
+        statGrid.className = 'learner-stat-grid';
+        appendStatPill(statGrid, 'Attempts', stats.total);
+        appendStatPill(statGrid, 'Correct', stats.correct, 'stat-success');
+        appendStatPill(statGrid, 'Wrong', stats.wrong, 'stat-error');
+
+        quizStatsContent.appendChild(statGrid);
+        quizStatsContent.appendChild(renderLevelStats(stats));
+        quizStatsContent.appendChild(renderWrongAnswerDetails(stats));
+        quizStatsCard.style.display = 'block';
     }
 
     [quizModeSelect, quizSourceSelect, quizLevelSelect].forEach(select => {
@@ -156,6 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 questionId: currentQuestion.id,
                 vocabId: currentQuestion.vocabItem.id,
                 source: currentQuestion.source,
+                level: currentQuestion.vocabItem.level || '',
                 direction: currentQuestion.direction,
                 questionText: currentQuestion.questionText,
                 userAnswer: answerInput.value.trim(),
@@ -332,10 +577,12 @@ document.addEventListener('DOMContentLoaded', () => {
         statusMessage.textContent = '';
         statusMessage.className = '';
         noDataMsg.style.display = 'none';
+        noDataMsg.className = '';
     }
 
     async function loadNextQuestion() {
         resetQuestionUi();
+        hidePageLoader();
 
         if (!currentUser) {
             quizForm.style.display = 'none';

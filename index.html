@@ -11,6 +11,13 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-card">
+            <div class="loader-spinner" aria-hidden="true"></div>
+            <strong>Loading Vocab Revision</strong>
+            <span>Preparing your vocabulary...</span>
+        </div>
+    </div>
     <div class="container">
         <header class="app-header">
             <div class="header-top">
@@ -80,14 +87,22 @@
         </div>
 
         <div class="recent-list-container">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin-bottom: 0;">Recent Words</h2>
+            <div class="list-toolbar">
+                <div>
+                    <h2 style="margin-bottom: 0;">Saved Words</h2>
+                    <p id="vocab-summary" class="list-summary">Loading vocabulary...</p>
+                </div>
                 <div class="json-actions">
                     <button type="button" id="import-btn" class="btn-secondary">Import JSON</button>
                     <button type="button" id="export-btn" class="btn-secondary">Export JSON</button>
                     <input type="file" id="import-file" accept="application/json,.json" style="display: none;">
                 </div>
             </div>
+            <div class="input-group list-search">
+                <label for="vocab-search">Search Vocabulary</label>
+                <input type="search" id="vocab-search" placeholder="Search German, English, or synonyms..." autocomplete="off">
+            </div>
+            <div id="vocab-load-status" class="list-status">Loading vocabulary...</div>
             <ul id="vocab-list" class="vocab-list">
                 <!-- Items will be injected here -->
             </ul>
@@ -101,5 +116,6 @@
     <script src="auth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="script.js"></script>
+    
 </body>
 </html>

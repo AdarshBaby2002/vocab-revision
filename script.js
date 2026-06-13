@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-btn');
     const statusMessage = document.getElementById('status-message');
     const vocabList = document.getElementById('vocab-list');
+    const vocabSearch = document.getElementById('vocab-search');
+    const vocabSummary = document.getElementById('vocab-summary');
+    const vocabLoadStatus = document.getElementById('vocab-load-status');
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFile = document.getElementById('import-file');
@@ -13,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentVocabData = [];
     let lastEditedLanguage = 'de';
     let currentUser = null;
+    let vocabLoadFailed = false;
 
     initializeAuthUi({
         required: true,
@@ -28,11 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    setVocabStatus('Loading vocabulary...', '');
+
     // Load initial data from Firebase
     const vocabRef = database.ref('vocab');
     vocabRef.on('value', (snapshot) => {
         const data = snapshot.val();
         currentVocabData = [];
+        vocabLoadFailed = false;
         if (data) {
             // Convert object to array and keep Firebase keys
             for (const key in data) {
@@ -43,6 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         renderVocab(currentVocabData);
+        hidePageLoader();
+    }, (error) => {
+        vocabLoadFailed = true;
+        currentVocabData = [];
+        renderVocab(currentVocabData);
+        setVocabStatus(`Could not load vocabulary: ${error.message}`, 'status-error');
+        hidePageLoader();
     });
 
     // Explicit translation functionality with synonyms
@@ -567,6 +581,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (vocabSearch) {
+        vocabSearch.addEventListener('input', () => {
+            renderVocab(currentVocabData);
+        });
+    }
+
     function showSuccess() {
         saveBtn.classList.add('success');
         statusMessage.textContent = 'Saved successfully!';
@@ -586,11 +606,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
+    function getSearchText(item) {
+        return [
+            item.german,
+            item.english,
+            ...(Array.isArray(item.synonyms) ? item.synonyms : [])
+        ].map(value => String(value || '')).join(' ').toLowerCase();
+    }
+
+    function getFilteredVocab(vocabArray) {
+        const query = vocabSearch ? vocabSearch.value.trim().toLowerCase() : '';
+        if (!query) return vocabArray;
+        return vocabArray.filter(item => getSearchText(item).includes(query));
+    }
+
+    function setVocabStatus(message, className = '') {
+        if (!vocabLoadStatus) return;
+        vocabLoadStatus.textContent = message;
+        vocabLoadStatus.className = className ? `list-status ${className}` : 'list-status';
+    }
+
     function renderVocab(vocabArray) {
         vocabList.innerHTML = '';
+        const filteredVocab = getFilteredVocab(vocabArray);
+
+        if (vocabSummary) {
+            const total = vocabArray.length;
+            const visible = filteredVocab.length;
+            vocabSummary.textContent = total === visible
+                ? `${total} saved ${total === 1 ? 'word' : 'words'}`
+                : `${visible} of ${total} words shown`;
+        }
+
+        if (!vocabLoadFailed) {
+            const query = vocabSearch ? vocabSearch.value.trim() : '';
+            if (vocabArray.length === 0) {
+                setVocabStatus('No vocabulary saved yet.', '');
+            } else if (filteredVocab.length === 0 && query) {
+                setVocabStatus('No words match your search.', '');
+            } else {
+                setVocabStatus('', '');
+            }
+        }
         
         // Show newest first
-        const sortedVocab = [...vocabArray].sort((a, b) => b.id - a.id);
+        const sortedVocab = [...filteredVocab].sort((a, b) => b.id - a.id);
         
         sortedVocab.forEach(item => {
             const li = document.createElement('li');

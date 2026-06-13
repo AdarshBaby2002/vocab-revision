@@ -1,3 +1,21 @@
+function hidePageLoader() {
+    const loader = document.getElementById('page-loader');
+    if (!loader) return;
+
+    loader.classList.add('is-hidden');
+    setTimeout(() => {
+        loader.style.display = 'none';
+    }, 220);
+}
+
+function showPageLoader() {
+    const loader = document.getElementById('page-loader');
+    if (!loader) return;
+
+    loader.style.display = 'flex';
+    loader.classList.remove('is-hidden');
+}
+
 function initializeAuthUi(options = {}) {
     const {
         required = true,
@@ -13,6 +31,7 @@ function initializeAuthUi(options = {}) {
     const authPassword = document.getElementById('auth-password');
     const signInBtn = document.getElementById('sign-in-btn');
     const signUpBtn = document.getElementById('sign-up-btn');
+    const passwordResetBtn = document.getElementById('password-reset-btn');
     const signOutBtn = document.getElementById('sign-out-btn');
     const authStatus = document.getElementById('auth-status');
     const userBadge = document.getElementById('user-badge');
@@ -81,6 +100,27 @@ function initializeAuthUi(options = {}) {
         }
     }
 
+    async function handlePasswordReset() {
+        const email = authEmail ? authEmail.value.trim() : '';
+
+        if (!email) {
+            setAuthStatus('Enter your email address first.', 'status-error');
+            return;
+        }
+
+        if (passwordResetBtn) passwordResetBtn.disabled = true;
+        setAuthStatus('Sending password reset email...');
+
+        try {
+            await auth.sendPasswordResetEmail(email);
+            setAuthStatus(`Password reset email sent to ${email}.`, 'status-success');
+        } catch (error) {
+            setAuthStatus(error.message || 'Failed to send password reset email.', 'status-error');
+        } finally {
+            if (passwordResetBtn) passwordResetBtn.disabled = false;
+        }
+    }
+
     if (authForm && authForm.tagName === 'FORM') {
         authForm.addEventListener('submit', (event) => {
             event.preventDefault();
@@ -94,6 +134,10 @@ function initializeAuthUi(options = {}) {
 
     if (signUpBtn) {
         signUpBtn.addEventListener('click', () => handleAuthAction('sign-up'));
+    }
+
+    if (passwordResetBtn) {
+        passwordResetBtn.addEventListener('click', handlePasswordReset);
     }
 
     if (signOutBtn) {
@@ -113,6 +157,7 @@ function initializeAuthUi(options = {}) {
             if (userBadge) userBadge.textContent = 'Not signed in';
             setAuthStatus(required ? 'Sign in to save your own progress.' : '');
             onSignedOut();
+            hidePageLoader();
             return;
         }
 
@@ -127,6 +172,7 @@ function initializeAuthUi(options = {}) {
             if (userBadge) userBadge.textContent = user.email;
             setAuthStatus('This account is signed in, but it is not an admin account.', 'status-error');
             onSignedOut(user);
+            hidePageLoader();
             return;
         }
 

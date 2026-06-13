@@ -48,18 +48,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAdminData() {
-        const [usersSnapshot, vocabSnapshot] = await Promise.all([
-            database.ref('users').once('value'),
-            database.ref('vocab').once('value')
-        ]);
+        learnerCount.textContent = '...';
+        wordCount.textContent = '...';
+        usersList.innerHTML = '';
+        usersList.appendChild(emptyState('Loading admin data...'));
+        showImportStatus('Loading admin data...', '');
+        if (refreshBtn) refreshBtn.disabled = true;
 
-        usersCache = usersSnapshot.val() || {};
-        vocabCache = vocabSnapshot.val() || {};
+        try {
+            const [usersSnapshot, vocabSnapshot] = await Promise.all([
+                database.ref('users').once('value'),
+                database.ref('vocab').once('value')
+            ]);
 
-        learnerCount.textContent = Object.keys(usersCache).length;
-        wordCount.textContent = Object.keys(vocabCache).length;
+            usersCache = usersSnapshot.val() || {};
+            vocabCache = vocabSnapshot.val() || {};
 
-        renderUsers();
+            learnerCount.textContent = Object.keys(usersCache).length;
+            wordCount.textContent = Object.keys(vocabCache).length;
+
+            renderUsers();
+            showImportStatus('', '');
+        } catch (error) {
+            console.error('Failed to load admin data:', error);
+            learnerCount.textContent = '!';
+            wordCount.textContent = '!';
+            usersList.innerHTML = '';
+            usersList.appendChild(emptyState('Could not load learners. Check database access and try again.'));
+            showImportStatus('Could not load admin data: ' + error.message, 'error');
+        } finally {
+            if (refreshBtn) refreshBtn.disabled = false;
+            hidePageLoader();
+        }
     }
 
     function normalizeText(value) {
@@ -166,6 +186,184 @@ document.addEventListener('DOMContentLoaded', () => {
             firebaseKey,
             ...item
         }));
+    }
+
+    function buildVocabById() {
+        const byId = {};
+        Object.values(vocabCache).forEach(item => {
+            if (item && item.id !== undefined && item.id !== null) {
+                byId[String(item.id)] = item;
+            }
+        });
+        return byId;
+    }
+
+    function getAttemptLevel(attempt, vocabById) {
+        if (attempt.level) return attempt.level;
+        const vocabItem = vocabById[String(attempt.vocabId || '')];
+        if (vocabItem && vocabItem.level) return vocabItem.level;
+        return attempt.source === 'online' ? 'Online' : 'Saved';
+    }
+
+    function getAttemptStats(attempts, vocabById) {
+        const values = Object.values(attempts || {}).filter(attempt => attempt && typeof attempt === 'object');
+        const stats = {
+            total: values.length,
+            correct: values.filter(attempt => attempt.correct === true).length,
+            wrong: values.filter(attempt => attempt.correct !== true).length,
+            byLevel: {},
+            wrongGroups: {}
+        };
+
+        values.forEach(attempt => {
+            const level = getAttemptLevel(attempt, vocabById);
+            if (!stats.byLevel[level]) {
+                stats.byLevel[level] = { attempts: 0, correct: 0, wrong: 0 };
+            }
+
+            stats.byLevel[level].attempts += 1;
+            if (attempt.correct === true) {
+                stats.byLevel[level].correct += 1;
+                return;
+            }
+
+            stats.byLevel[level].wrong += 1;
+
+            const questionId = attempt.questionId || `${attempt.direction || ''}:${attempt.questionText || ''}`;
+            const userAnswer = String(attempt.userAnswer || '').trim() || 'I do not know';
+            const wrongKey = [
+                questionId,
+                normalizeText(userAnswer),
+                attempt.correctAnswers || ''
+            ].join('|');
+
+            if (!stats.wrongGroups[wrongKey]) {
+                stats.wrongGroups[wrongKey] = {
+                    questionText: attempt.questionText || 'Unknown question',
+                    direction: attempt.direction || 'Unknown direction',
+                    userAnswer,
+                    correctAnswers: attempt.correctAnswers || 'Unknown answer',
+                    level,
+                    count: 0,
+                    lastAt: 0
+                };
+            }
+
+            stats.wrongGroups[wrongKey].count += 1;
+            stats.wrongGroups[wrongKey].lastAt = Math.max(
+                stats.wrongGroups[wrongKey].lastAt,
+                Number(attempt.createdAt || 0)
+            );
+        });
+
+        return stats;
+    }
+
+    function appendStatPill(container, label, value, className = '') {
+        const pill = document.createElement('span');
+        pill.className = className ? `stat-pill ${className}` : 'stat-pill';
+
+        const pillLabel = document.createElement('span');
+        pillLabel.textContent = label;
+
+        const pillValue = document.createElement('strong');
+        pillValue.textContent = value;
+
+        pill.appendChild(pillLabel);
+        pill.appendChild(pillValue);
+        container.appendChild(pill);
+    }
+
+    function renderLevelStats(stats) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'level-stats';
+
+        Object.entries(stats.byLevel)
+            .sort(([levelA], [levelB]) => levelA.localeCompare(levelB))
+            .forEach(([level, levelStats]) => {
+                const row = document.createElement('div');
+                row.className = 'level-stat-row';
+
+                const label = document.createElement('strong');
+                label.textContent = level;
+
+                const values = document.createElement('span');
+                values.textContent = `${levelStats.attempts} attempts | ${levelStats.correct} correct | ${levelStats.wrong} wrong`;
+
+                row.appendChild(label);
+                row.appendChild(values);
+                wrapper.appendChild(row);
+            });
+
+        if (!wrapper.children.length) {
+            const empty = document.createElement('span');
+            empty.className = 'empty-inline';
+            empty.textContent = 'No attempts yet.';
+            wrapper.appendChild(empty);
+        }
+
+        return wrapper;
+    }
+
+    function renderWrongAnswerDetails(stats) {
+        const groups = Object.values(stats.wrongGroups)
+            .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt);
+
+        const details = document.createElement('details');
+        details.className = 'wrong-answer-details';
+
+        const summary = document.createElement('summary');
+        summary.textContent = groups.length
+            ? `Wrong answers (${groups.length} repeated answer ${groups.length === 1 ? 'group' : 'groups'})`
+            : 'Wrong answers';
+        details.appendChild(summary);
+
+        if (groups.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'empty-state';
+            empty.textContent = 'No wrong answers recorded.';
+            details.appendChild(empty);
+            return details;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'wrong-answer-list';
+
+        groups.forEach(group => {
+            const item = document.createElement('article');
+            item.className = 'wrong-answer-item';
+
+            const header = document.createElement('div');
+            header.className = 'wrong-answer-header';
+
+            const question = document.createElement('strong');
+            question.textContent = group.questionText;
+
+            const count = document.createElement('span');
+            count.className = 'wrong-count';
+            count.textContent = `${group.count}x`;
+
+            header.appendChild(question);
+            header.appendChild(count);
+
+            const meta = document.createElement('small');
+            meta.textContent = `${group.level} | ${group.direction}`;
+
+            const answer = document.createElement('span');
+            answer.textContent = `Wrong answer: ${group.userAnswer}`;
+
+            const correct = document.createElement('span');
+            correct.textContent = `Correct: ${group.correctAnswers}`;
+
+            item.appendChild(header);
+            item.appendChild(meta);
+            item.appendChild(answer);
+            item.appendChild(correct);
+            list.appendChild(item);
+        });
+
+        details.appendChild(list);
+        return details;
     }
 
     function addImportedEntry(entry, updates, localVocab, stats, timestampBase) {
@@ -302,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUsers() {
         usersList.innerHTML = '';
         const entries = Object.entries(usersCache);
+        const vocabById = buildVocabById();
 
         if (entries.length === 0) {
             usersList.appendChild(emptyState('No learners yet.'));
@@ -312,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const profile = userData.profile || {};
             const progress = userData.progress || {};
             const attempts = userData.attempts || {};
-            const wrongCount = Object.values(attempts).filter(item => !item.correct).length;
+            const stats = getAttemptStats(attempts, vocabById);
 
             const row = document.createElement('article');
             row.className = 'admin-row';
@@ -321,7 +520,13 @@ document.addEventListener('DOMContentLoaded', () => {
             title.textContent = profile.email || uid;
 
             const meta = document.createElement('span');
-            meta.textContent = `${Object.keys(progress).length} progress items | ${Object.keys(attempts).length} attempts | ${wrongCount} wrong`;
+            meta.textContent = `${Object.keys(progress).length} progress items`;
+
+            const statGrid = document.createElement('div');
+            statGrid.className = 'learner-stat-grid';
+            appendStatPill(statGrid, 'Attempts', stats.total);
+            appendStatPill(statGrid, 'Correct', stats.correct, 'stat-success');
+            appendStatPill(statGrid, 'Wrong', stats.wrong, 'stat-error');
 
             const small = document.createElement('small');
             small.textContent = `UID: ${uid}`;
@@ -344,6 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.appendChild(title);
             row.appendChild(meta);
+            row.appendChild(statGrid);
+            row.appendChild(renderLevelStats(stats));
+            row.appendChild(renderWrongAnswerDetails(stats));
             row.appendChild(small);
             row.appendChild(actions);
             usersList.appendChild(row);

@@ -10,6 +10,13 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-card">
+            <div class="loader-spinner" aria-hidden="true"></div>
+            <strong>Loading Vocab Quiz</strong>
+            <span>Preparing your quiz data...</span>
+        </div>
+    </div>
     <div class="container">
         <header class="app-header">
             <div class="header-top">
@@ -114,6 +121,13 @@
                 <button id="next-btn" class="btn-primary" style="background: var(--bg-gradient-end); border: 1px solid var(--primary-color);">Next Question</button>
             </div>
         </div>
+
+        <section class="glass-card" id="quiz-stats-card" style="display: none;">
+            <div class="panel-heading">
+                <h2>Your Quiz Stats</h2>
+            </div>
+            <div id="quiz-stats-content"></div>
+        </section>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

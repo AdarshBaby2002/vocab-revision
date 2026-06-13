@@ -33,6 +33,13 @@
     </style>
 </head>
 <body>
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-card">
+            <div class="loader-spinner" aria-hidden="true"></div>
+            <strong>Loading Sign In</strong>
+            <span>Checking your session...</span>
+        </div>
+    </div>
     <div class="container auth-page-container">
         <header>
             <h1>Sign In</h1>
@@ -46,6 +53,7 @@
                 <div class="auth-actions" style="margin-top: 0.5rem; display: block;">
                     <button type="submit" id="sign-in-btn" class="btn-primary" style="width: 100%; border-radius: 16px; padding: 1rem;">Sign In</button>
                 </div>
+                <button type="button" id="password-reset-btn" class="link-button">Forgot password?</button>
             </form>
             <div id="auth-status"></div>
             
