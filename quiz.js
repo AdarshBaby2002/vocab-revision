@@ -34,13 +34,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let vocabRef = null;
     let progressRef = null;
     let attemptsRef = null;
+    let quizStatsRef = null;
+    let wrongGroupsRef = null;
 
     let dataLoaded = false;
     let progressLoaded = false;
-    let attemptsLoaded = false;
+    let statsLoaded = false;
     let quizStarted = false;
     let readFailed = false;
-    let userAttempts = {};
+    let userStats = getEmptyStats();
+    let loadedWrongGroups = [];
+    let loadedWrongGroupKeys = new Set();
+    let wrongGroupsCursorRank = null;
+    let wrongGroupsHasMore = false;
+    const wrongGroupsPageSize = 10;
 
     loadPreferences();
 
@@ -65,12 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = user;
         dataLoaded = false;
         progressLoaded = false;
-        attemptsLoaded = false;
+        statsLoaded = false;
         quizStarted = false;
         readFailed = false;
         vocabData = [];
         quizProgress = {};
-        userAttempts = {};
+        userStats = getEmptyStats();
+        loadedWrongGroups = [];
+        loadedWrongGroupKeys = new Set();
+        wrongGroupsCursorRank = null;
+        wrongGroupsHasMore = false;
         quizForm.style.display = 'none';
         if (quizStatsCard) quizStatsCard.style.display = 'none';
         noDataMsg.style.display = 'block';
@@ -80,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         vocabRef = database.ref('vocab');
         progressRef = database.ref(`users/${user.uid}/progress`);
         attemptsRef = database.ref(`users/${user.uid}/attempts`);
+        quizStatsRef = database.ref(`users/${user.uid}/quizStats`);
+        wrongGroupsRef = database.ref(`users/${user.uid}/wrongAnswerGroups`);
 
         vocabRef.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -93,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             dataLoaded = true;
-            if (attemptsLoaded) renderUserStats();
             checkAndStart();
         }, (error) => {
             showReadError(`Could not load vocabulary: ${error.message}`);
@@ -107,32 +119,40 @@ document.addEventListener('DOMContentLoaded', () => {
             showReadError(`Could not load quiz progress: ${error.message}`);
         });
 
-        attemptsRef.on('value', (snapshot) => {
-            userAttempts = snapshot.val() || {};
-            attemptsLoaded = true;
+        quizStatsRef.on('value', (snapshot) => {
+            userStats = normalizeStoredStats(snapshot.val());
+            statsLoaded = true;
             renderUserStats();
             checkAndStart();
         }, (error) => {
-            showReadError(`Could not load answer history: ${error.message}`);
+            showReadError(`Could not load quiz stats: ${error.message}`);
         });
+
+        loadWrongAnswerGroups(true);
     }
 
     function stopUserSession() {
         if (vocabRef) vocabRef.off();
         if (progressRef) progressRef.off();
-        if (attemptsRef) attemptsRef.off();
+        if (quizStatsRef) quizStatsRef.off();
         vocabRef = null;
         progressRef = null;
         attemptsRef = null;
+        quizStatsRef = null;
+        wrongGroupsRef = null;
         currentUser = null;
         dataLoaded = false;
         progressLoaded = false;
-        attemptsLoaded = false;
+        statsLoaded = false;
         quizStarted = false;
         readFailed = false;
         vocabData = [];
         quizProgress = {};
-        userAttempts = {};
+        userStats = getEmptyStats();
+        loadedWrongGroups = [];
+        loadedWrongGroupKeys = new Set();
+        wrongGroupsCursorRank = null;
+        wrongGroupsHasMore = false;
         currentQuestion = null;
         if (quizStatsCard) quizStatsCard.style.display = 'none';
     }
@@ -154,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function checkAndStart() {
-        if (readFailed || !dataLoaded || !progressLoaded || !attemptsLoaded || quizStarted) return;
+        if (readFailed || !dataLoaded || !progressLoaded || !statsLoaded || quizStarted) return;
 
         quizStarted = true;
         loadNextQuestion();
@@ -243,6 +263,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return stats;
     }
 
+    function getEmptyStats() {
+        return {
+            total: 0,
+            correct: 0,
+            wrong: 0,
+            byLevel: {},
+            wrongGroupTotal: 0
+        };
+    }
+
+    function normalizeStoredStats(value) {
+        if (!value || typeof value !== 'object') return getEmptyStats();
+        return {
+            total: Number(value.total || 0),
+            correct: Number(value.correct || 0),
+            wrong: Number(value.wrong || 0),
+            byLevel: value.byLevel || {},
+            wrongGroupTotal: Number(value.wrongGroupTotal || 0)
+        };
+    }
+
+    function getWrongGroupKey(attempt) {
+        const questionId = attempt.questionId || `${attempt.direction || ''}:${attempt.questionText || ''}`;
+        const userAnswer = String(attempt.userAnswer || '').trim() || 'I do not know';
+        return [
+            questionId,
+            normalizeText(userAnswer),
+            attempt.correctAnswers || ''
+        ].join('|').replace(/[.#$\[\]/]/g, '_');
+    }
+
     function appendStatPill(container, label, value, className = '') {
         const pill = document.createElement('span');
         pill.className = className ? `stat-pill ${className}` : 'stat-pill';
@@ -290,22 +341,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderWrongAnswerDetails(stats) {
-        const groups = Object.values(stats.wrongGroups)
-            .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt);
-
+        const groups = loadedWrongGroups;
         const details = document.createElement('details');
         details.className = 'wrong-answer-details';
 
         const summary = document.createElement('summary');
-        summary.textContent = groups.length
-            ? `Wrong answers (${groups.length} repeated answer ${groups.length === 1 ? 'group' : 'groups'})`
+        summary.textContent = stats.wrongGroupTotal
+            ? `Wrong answers (${stats.wrongGroupTotal} repeated answer ${stats.wrongGroupTotal === 1 ? 'group' : 'groups'})`
             : 'Wrong answers';
         details.appendChild(summary);
 
         if (groups.length === 0) {
             const empty = document.createElement('p');
             empty.className = 'empty-state';
-            empty.textContent = 'No wrong answers recorded.';
+            empty.textContent = stats.wrongGroupTotal ? 'Loading wrong answers...' : 'No wrong answers recorded.';
             details.appendChild(empty);
             return details;
         }
@@ -314,47 +363,101 @@ document.addEventListener('DOMContentLoaded', () => {
         list.className = 'wrong-answer-list';
 
         groups.forEach(group => {
-            const item = document.createElement('article');
-            item.className = 'wrong-answer-item';
-
-            const header = document.createElement('div');
-            header.className = 'wrong-answer-header';
-
-            const question = document.createElement('strong');
-            question.textContent = group.questionText;
-
-            const count = document.createElement('span');
-            count.className = 'wrong-count';
-            count.textContent = `${group.count}x`;
-
-            header.appendChild(question);
-            header.appendChild(count);
-
-            const meta = document.createElement('small');
-            meta.textContent = `${group.level} | ${group.direction}`;
-
-            const answer = document.createElement('span');
-            answer.textContent = `Wrong answer: ${group.userAnswer}`;
-
-            const correct = document.createElement('span');
-            correct.textContent = `Correct: ${group.correctAnswers}`;
-
-            item.appendChild(header);
-            item.appendChild(meta);
-            item.appendChild(answer);
-            item.appendChild(correct);
-            list.appendChild(item);
+            list.appendChild(createWrongAnswerItem(group));
         });
-
         details.appendChild(list);
+
+        if (wrongGroupsHasMore) {
+            const loadMore = document.createElement('button');
+            loadMore.type = 'button';
+            loadMore.className = 'btn-secondary btn-small wrong-answer-load-more';
+            loadMore.textContent = 'Load more';
+            loadMore.addEventListener('click', async () => {
+                loadMore.disabled = true;
+                loadMore.textContent = 'Loading...';
+                await loadWrongAnswerGroups(false);
+            });
+            details.appendChild(loadMore);
+        }
+
         return details;
+    }
+
+    function createWrongAnswerItem(group) {
+        const item = document.createElement('article');
+        item.className = 'wrong-answer-item';
+
+        const header = document.createElement('div');
+        header.className = 'wrong-answer-header';
+
+        const question = document.createElement('strong');
+        question.textContent = group.questionText;
+
+        const count = document.createElement('span');
+        count.className = 'wrong-count';
+        count.textContent = `${group.count}x`;
+
+        header.appendChild(question);
+        header.appendChild(count);
+
+        const meta = document.createElement('small');
+        meta.textContent = `${group.level} | ${group.direction}`;
+
+        const answer = document.createElement('span');
+        answer.textContent = `Wrong answer: ${group.userAnswer}`;
+
+        const correct = document.createElement('span');
+        correct.textContent = `Correct: ${group.correctAnswers}`;
+
+        item.appendChild(header);
+        item.appendChild(meta);
+        item.appendChild(answer);
+        item.appendChild(correct);
+        return item;
+    }
+
+    async function loadWrongAnswerGroups(reset = false) {
+        if (!wrongGroupsRef) return;
+
+        if (reset) {
+            loadedWrongGroups = [];
+            loadedWrongGroupKeys = new Set();
+            wrongGroupsCursorRank = null;
+        } else {
+            wrongGroupsCursorRank = loadedWrongGroups.length
+                ? loadedWrongGroups[loadedWrongGroups.length - 1].sortRank
+                : null;
+        }
+
+        try {
+            let query = wrongGroupsRef.orderByChild('sortRank');
+            if (wrongGroupsCursorRank !== null && wrongGroupsCursorRank !== undefined) {
+                query = query.startAt(wrongGroupsCursorRank);
+            }
+
+            const snapshot = await query.limitToFirst(wrongGroupsPageSize + 2).once('value');
+            const fetchedGroups = [];
+            snapshot.forEach(child => {
+                fetchedGroups.push({ firebaseKey: child.key, ...child.val() });
+            });
+
+            const newGroups = fetchedGroups.filter(group => !loadedWrongGroupKeys.has(group.firebaseKey));
+            wrongGroupsHasMore = newGroups.length > wrongGroupsPageSize;
+            newGroups.slice(0, wrongGroupsPageSize).forEach(group => {
+                loadedWrongGroups.push(group);
+                loadedWrongGroupKeys.add(group.firebaseKey);
+            });
+            renderUserStats();
+        } catch (error) {
+            console.error('Failed to load wrong answer groups:', error);
+        }
     }
 
     function renderUserStats() {
         if (!quizStatsCard || !quizStatsContent) return;
 
         quizStatsContent.innerHTML = '';
-        const stats = getAttemptStats(userAttempts);
+        const stats = userStats;
 
         const statGrid = document.createElement('div');
         statGrid.className = 'learner-stat-grid';
@@ -364,8 +467,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
         quizStatsContent.appendChild(statGrid);
         quizStatsContent.appendChild(renderLevelStats(stats));
+        quizStatsContent.appendChild(renderLegacyImportPrompt(stats));
         quizStatsContent.appendChild(renderWrongAnswerDetails(stats));
         quizStatsCard.style.display = 'block';
+    }
+
+    function renderLegacyImportPrompt(stats) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'legacy-import';
+
+        const text = document.createElement('span');
+        text.textContent = stats.total
+            ? 'Old attempts may not be included in these grouped stats.'
+            : 'Past attempts can be imported once to rebuild these stats.';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn-secondary btn-small';
+        button.textContent = 'Import old history';
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            button.textContent = 'Importing...';
+            await importLegacyAttempts();
+        });
+
+        wrapper.appendChild(text);
+        wrapper.appendChild(button);
+        return wrapper;
+    }
+
+    async function importLegacyAttempts() {
+        if (!currentUser || !attemptsRef) return;
+
+        try {
+            const snapshot = await attemptsRef.once('value');
+            const attempts = snapshot.val() || {};
+            const stats = getAttemptStats(attempts);
+            const wrongGroups = {};
+
+            Object.values(stats.wrongGroups || {}).forEach(group => {
+                const key = getWrongGroupKey(group);
+                wrongGroups[key] = {
+                    questionText: group.questionText || 'Unknown question',
+                    direction: group.direction || 'Unknown direction',
+                    userAnswer: group.userAnswer || 'I do not know',
+                    correctAnswers: group.correctAnswers || 'Unknown answer',
+                    level: group.level || 'Unknown',
+                    count: Number(group.count || 0),
+                    lastAt: Number(group.lastAt || 0),
+                    sortRank: (-Number(group.count || 0) * 10000000000000) - Number(group.lastAt || 0)
+                };
+            });
+
+            await database.ref(`users/${currentUser.uid}/quizStats`).set({
+                total: stats.total,
+                correct: stats.correct,
+                wrong: stats.wrong,
+                byLevel: stats.byLevel,
+                wrongGroupTotal: Object.keys(wrongGroups).length
+            });
+            await database.ref(`users/${currentUser.uid}/wrongAnswerGroups`).set(wrongGroups);
+            await loadWrongAnswerGroups(true);
+        } catch (error) {
+            console.error('Failed to import old attempts:', error);
+        }
     }
 
     [quizModeSelect, quizSourceSelect, quizLevelSelect].forEach(select => {
@@ -392,26 +557,81 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveAttempt(isCorrect, normalizedUserAnswer, allValidAnswerStrings) {
         if (!currentUser || !currentQuestion) return;
 
+        const attempt = {
+            createdAt: Date.now(),
+            createdAtIso: new Date().toISOString(),
+            correct: isCorrect,
+            questionId: currentQuestion.id,
+            vocabId: currentQuestion.vocabItem.id,
+            source: currentQuestion.source,
+            level: currentQuestion.vocabItem.level || '',
+            direction: currentQuestion.direction,
+            questionText: currentQuestion.questionText,
+            userAnswer: answerInput.value.trim(),
+            normalizedUserAnswer,
+            correctAnswers: Array.from(allValidAnswerStrings).join(' / '),
+            streakAfterAnswer: quizProgress[currentQuestion.id]?.streak || 0,
+            nextReview: quizProgress[currentQuestion.id]?.nextReview || 0
+        };
+
         try {
-            await database.ref(`users/${currentUser.uid}/attempts`).push({
-                createdAt: Date.now(),
-                createdAtIso: new Date().toISOString(),
-                correct: isCorrect,
-                questionId: currentQuestion.id,
-                vocabId: currentQuestion.vocabItem.id,
-                source: currentQuestion.source,
-                level: currentQuestion.vocabItem.level || '',
-                direction: currentQuestion.direction,
-                questionText: currentQuestion.questionText,
-                userAnswer: answerInput.value.trim(),
-                normalizedUserAnswer,
-                correctAnswers: Array.from(allValidAnswerStrings).join(' / '),
-                streakAfterAnswer: quizProgress[currentQuestion.id]?.streak || 0,
-                nextReview: quizProgress[currentQuestion.id]?.nextReview || 0
-            });
+            await database.ref(`users/${currentUser.uid}/attempts`).push(attempt);
+            await saveQuizStats(attempt);
+            if (attempt.correct !== true) {
+                await loadWrongAnswerGroups(true);
+            }
         } catch (error) {
             console.error('Failed to save answer attempt:', error);
         }
+    }
+
+    async function saveQuizStats(attempt) {
+        const uid = currentUser.uid;
+        const level = attempt.level || (attempt.source === 'online' ? 'Online' : 'Saved');
+        let createdWrongGroup = false;
+
+        if (attempt.correct !== true) {
+            const wrongKey = getWrongGroupKey(attempt);
+            const wrongGroupRef = database.ref(`users/${uid}/wrongAnswerGroups/${wrongKey}`);
+            await wrongGroupRef.transaction(current => {
+                createdWrongGroup = !current;
+                const count = Number(current?.count || 0) + 1;
+                const lastAt = Number(attempt.createdAt || Date.now());
+                return {
+                    questionText: attempt.questionText || 'Unknown question',
+                    direction: attempt.direction || 'Unknown direction',
+                    userAnswer: String(attempt.userAnswer || '').trim() || 'I do not know',
+                    correctAnswers: attempt.correctAnswers || 'Unknown answer',
+                    level,
+                    count,
+                    lastAt,
+                    sortRank: (-count * 10000000000000) - lastAt
+                };
+            });
+        }
+
+        await database.ref(`users/${uid}/quizStats`).transaction(current => {
+            const stats = normalizeStoredStats(current);
+            stats.total += 1;
+            if (attempt.correct === true) {
+                stats.correct += 1;
+            } else {
+                stats.wrong += 1;
+                if (createdWrongGroup) stats.wrongGroupTotal += 1;
+            }
+
+            if (!stats.byLevel[level]) {
+                stats.byLevel[level] = { attempts: 0, correct: 0, wrong: 0 };
+            }
+            stats.byLevel[level].attempts += 1;
+            if (attempt.correct === true) {
+                stats.byLevel[level].correct += 1;
+            } else {
+                stats.byLevel[level].wrong += 1;
+            }
+
+            return stats;
+        });
     }
 
     function getDueQuestions() {

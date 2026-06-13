@@ -24,9 +24,13 @@
             ".validate": "newData.hasChildren(['createdAt', 'correct', 'direction', 'questionText', 'userAnswer', 'correctAnswers'])"
           }
         },
-        "writingAttempts": {
-          "$attemptId": {
-            ".validate": "newData.hasChildren(['createdAt', 'level', 'german', 'prompt', 'userText', 'score', 'checksPassed', 'checksTotal'])"
+        "quizStats": {
+          ".validate": "newData.hasChildren(['total', 'correct', 'wrong', 'byLevel'])"
+        },
+        "wrongAnswerGroups": {
+          ".indexOn": ["sortRank"],
+          "$groupId": {
+            ".validate": "newData.hasChildren(['questionText', 'direction', 'userAnswer', 'correctAnswers', 'level', 'count', 'lastAt', 'sortRank'])"
           }
         }
       }

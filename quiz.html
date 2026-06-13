@@ -37,45 +37,47 @@
             </div>
             
             <div class="hero-section">
-                <p>Test saved words or online German vocabulary by level.</p>
                 <div class="hero-actions" style="margin-bottom: 1.5rem;">
                     <a href="index.html" class="btn-secondary" style="text-decoration: none;">Home</a>
-                    <a href="writing.html" class="btn-secondary" style="text-decoration: none;">Writing</a>
                     <a href="admin.html" id="admin-link" class="btn-secondary" style="display: none; text-decoration: none;">Admin</a>
                 </div>
-                
-                <div class="quiz-controls">
-                    <div class="quiz-control">
-                        <label for="quiz-source">Source</label>
-                        <select id="quiz-source">
-                            <option value="saved">Saved Data</option>
-                            <option value="online">Online Words</option>
-                        </select>
-                    </div>
 
-                    <div class="quiz-control">
-                        <label for="quiz-level">Level</label>
-                        <select id="quiz-level">
-                            <option value="A1">A1</option>
-                            <option value="A2">A2</option>
-                            <option value="B1">B1</option>
-                            <option value="B2">B2</option>
-                            <option value="C1">C1</option>
-                            <option value="C2">C2</option>
-                        </select>
-                    </div>
+                <details class="quiz-settings">
+                    <summary>Quiz Settings</summary>
 
-                    <div class="quiz-control">
-                        <label for="quiz-mode">Quiz Mode</label>
-                        <select id="quiz-mode">
-                            <option value="mixed">Mixed</option>
-                            <option value="de-to-en">German to English</option>
-                            <option value="en-to-de">English to German</option>
-                        </select>
-                    </div>
+                    <div class="quiz-controls">
+                        <div class="quiz-control">
+                            <label for="quiz-source">Source</label>
+                            <select id="quiz-source">
+                                <option value="saved">Saved Data</option>
+                                <option value="online">Online Words</option>
+                            </select>
+                        </div>
 
-                    <button type="button" id="new-question-btn" class="btn-secondary">Ask Question</button>
-                </div>
+                        <div class="quiz-control">
+                            <label for="quiz-level">Level</label>
+                            <select id="quiz-level">
+                                <option value="A1">A1</option>
+                                <option value="A2">A2</option>
+                                <option value="B1">B1</option>
+                                <option value="B2">B2</option>
+                                <option value="C1">C1</option>
+                                <option value="C2">C2</option>
+                            </select>
+                        </div>
+
+                        <div class="quiz-control">
+                            <label for="quiz-mode">Quiz Mode</label>
+                            <select id="quiz-mode">
+                                <option value="mixed">Mixed</option>
+                                <option value="de-to-en">German to English</option>
+                                <option value="en-to-de">English to German</option>
+                            </select>
+                        </div>
+
+                        <button type="button" id="new-question-btn" class="btn-secondary">Ask Question</button>
+                    </div>
+                </details>
             </div>
         </header>
 

@@ -495,6 +495,19 @@ document.addEventListener('DOMContentLoaded', () => {
         importStatus.className = type ? `admin-status status-${type}` : 'admin-status';
     }
 
+    function formatLastSeen(value) {
+        if (!value) return 'Never recorded';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'Never recorded';
+        return date.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
 
 
     function renderUsers() {
@@ -521,6 +534,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const meta = document.createElement('span');
             meta.textContent = `${Object.keys(progress).length} progress items`;
+
+            const lastSeen = document.createElement('span');
+            lastSeen.textContent = `Last active: ${formatLastSeen(profile.lastLoginAt)}`;
 
             const statGrid = document.createElement('div');
             statGrid.className = 'learner-stat-grid';
@@ -549,9 +565,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.appendChild(title);
             row.appendChild(meta);
+            row.appendChild(lastSeen);
             row.appendChild(statGrid);
             row.appendChild(renderLevelStats(stats));
-            row.appendChild(renderWrongAnswerDetails(stats));
             row.appendChild(small);
             row.appendChild(actions);
             usersList.appendChild(row);
