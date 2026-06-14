@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const importBtn = document.getElementById('import-vocab-btn');
     const clearImportBtn = document.getElementById('clear-import-btn');
     const clearVocabBtn = document.getElementById('clear-vocab-btn');
+    const resetAllQuizBtn = document.getElementById('reset-all-quiz-btn');
     const importStatus = document.getElementById('import-status');
 
     let usersCache = {};
@@ -45,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (clearVocabBtn) {
         clearVocabBtn.addEventListener('click', handleClearVocabulary);
+    }
+
+    if (resetAllQuizBtn) {
+        resetAllQuizBtn.addEventListener('click', handleResetAllQuizStatus);
     }
 
     async function loadAdminData() {
@@ -555,12 +560,18 @@ document.addEventListener('DOMContentLoaded', () => {
             resetBtn.textContent = 'Reset Password';
             resetBtn.onclick = () => handleResetPassword(profile.email);
 
+            const resetQuizBtn = document.createElement('button');
+            resetQuizBtn.className = 'btn-secondary btn-small';
+            resetQuizBtn.textContent = 'Reset Quiz';
+            resetQuizBtn.onclick = () => handleResetQuizStatus(uid, profile.email);
+
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn-danger btn-small';
             deleteBtn.textContent = 'Delete Data';
             deleteBtn.onclick = () => handleDeleteUser(uid, profile.email);
 
             if (profile.email) actions.appendChild(resetBtn);
+            actions.appendChild(resetQuizBtn);
             actions.appendChild(deleteBtn);
 
             row.appendChild(title);
@@ -593,6 +604,66 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error sending reset email:', error);
             alert('Failed to send reset email: ' + error.message);
+        }
+    }
+
+    async function handleResetQuizStatus(uid, email) {
+        const label = email || uid;
+        if (!confirm(`Reset quiz status for ${label}? This removes progress, attempts, stats, wrong-answer groups, and retry streaks.`)) return;
+
+        const secondConfirm = prompt(`Type RESET QUIZ to confirm resetting quiz status for ${label}.`);
+        if (secondConfirm !== 'RESET QUIZ') return;
+
+        try {
+            await database.ref().update({
+                [`users/${uid}/progress`]: null,
+                [`users/${uid}/attempts`]: null,
+                [`users/${uid}/quizStats`]: null,
+                [`users/${uid}/wrongAnswerGroups`]: null,
+                [`users/${uid}/wrongReview`]: null
+            });
+            alert('Quiz status reset successfully.');
+            loadAdminData();
+        } catch (error) {
+            console.error('Error resetting quiz status:', error);
+            alert('Failed to reset quiz status: ' + error.message);
+        }
+    }
+
+    async function handleResetAllQuizStatus() {
+        const users = Object.keys(usersCache);
+        if (users.length === 0) {
+            alert('There are no learners to reset.');
+            return;
+        }
+
+        if (!confirm(`Reset quiz status for all ${users.length} learners? This removes progress, attempts, stats, wrong-answer groups, and retry streaks.`)) return;
+
+        const secondConfirm = prompt('Type RESET ALL QUIZ to confirm resetting every learner quiz status.');
+        if (secondConfirm !== 'RESET ALL QUIZ') return;
+
+        resetAllQuizBtn.disabled = true;
+        resetAllQuizBtn.textContent = 'Resetting...';
+
+        try {
+            const updates = {};
+            users.forEach(uid => {
+                updates[`users/${uid}/progress`] = null;
+                updates[`users/${uid}/attempts`] = null;
+                updates[`users/${uid}/quizStats`] = null;
+                updates[`users/${uid}/wrongAnswerGroups`] = null;
+                updates[`users/${uid}/wrongReview`] = null;
+            });
+
+            await database.ref().update(updates);
+            alert('All learner quiz statuses reset successfully.');
+            loadAdminData();
+        } catch (error) {
+            console.error('Error resetting all quiz statuses:', error);
+            alert('Failed to reset all quiz statuses: ' + error.message);
+        } finally {
+            resetAllQuizBtn.disabled = false;
+            resetAllQuizBtn.textContent = 'Reset All Quiz';
         }
     }
 

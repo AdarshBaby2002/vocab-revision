@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const quizModeSelect = document.getElementById('quiz-mode');
     const quizSourceSelect = document.getElementById('quiz-source');
     const quizLevelSelect = document.getElementById('quiz-level');
+    const quizSectionSelect = document.getElementById('quiz-section');
     const quizStatsCard = document.getElementById('quiz-stats-card');
     const quizStatsContent = document.getElementById('quiz-stats-content');
 
@@ -36,17 +37,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let attemptsRef = null;
     let quizStatsRef = null;
     let wrongGroupsRef = null;
+    let wrongReviewRef = null;
 
     let dataLoaded = false;
     let progressLoaded = false;
     let statsLoaded = false;
+    let wrongReviewLoaded = false;
     let quizStarted = false;
     let readFailed = false;
     let userStats = getEmptyStats();
+    let wrongReviewData = {};
     let loadedWrongGroups = [];
     let loadedWrongGroupKeys = new Set();
     let wrongGroupsCursorRank = null;
     let wrongGroupsHasMore = false;
+    let recentQuestionIds = [];
+    const sectionSize = 50;
+    const wrongReviewTargetStreak = 5;
+    const recentQuestionLimit = 3;
+    const retryQuestionChance = 0.35;
     const wrongGroupsPageSize = 10;
 
     loadPreferences();
@@ -73,15 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
         dataLoaded = false;
         progressLoaded = false;
         statsLoaded = false;
+        wrongReviewLoaded = false;
         quizStarted = false;
         readFailed = false;
         vocabData = [];
         quizProgress = {};
+        wrongReviewData = {};
         userStats = getEmptyStats();
         loadedWrongGroups = [];
         loadedWrongGroupKeys = new Set();
         wrongGroupsCursorRank = null;
         wrongGroupsHasMore = false;
+        recentQuestionIds = [];
         quizForm.style.display = 'none';
         if (quizStatsCard) quizStatsCard.style.display = 'none';
         noDataMsg.style.display = 'block';
@@ -93,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attemptsRef = database.ref(`users/${user.uid}/attempts`);
         quizStatsRef = database.ref(`users/${user.uid}/quizStats`);
         wrongGroupsRef = database.ref(`users/${user.uid}/wrongAnswerGroups`);
+        wrongReviewRef = database.ref(`users/${user.uid}/wrongReview`);
 
         vocabRef.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -105,6 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             }
+            prepareVocabSections();
+            updateSectionOptions();
             dataLoaded = true;
             checkAndStart();
         }, (error) => {
@@ -128,6 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
             showReadError(`Could not load quiz stats: ${error.message}`);
         });
 
+        wrongReviewRef.on('value', (snapshot) => {
+            wrongReviewData = snapshot.val() || {};
+            wrongReviewLoaded = true;
+            checkAndStart();
+        }, (error) => {
+            showReadError(`Could not load wrong-answer retry progress: ${error.message}`);
+        });
+
         loadWrongAnswerGroups(true);
     }
 
@@ -135,24 +158,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vocabRef) vocabRef.off();
         if (progressRef) progressRef.off();
         if (quizStatsRef) quizStatsRef.off();
+        if (wrongReviewRef) wrongReviewRef.off();
         vocabRef = null;
         progressRef = null;
         attemptsRef = null;
         quizStatsRef = null;
         wrongGroupsRef = null;
+        wrongReviewRef = null;
         currentUser = null;
         dataLoaded = false;
         progressLoaded = false;
         statsLoaded = false;
+        wrongReviewLoaded = false;
         quizStarted = false;
         readFailed = false;
         vocabData = [];
         quizProgress = {};
+        wrongReviewData = {};
         userStats = getEmptyStats();
         loadedWrongGroups = [];
         loadedWrongGroupKeys = new Set();
         wrongGroupsCursorRank = null;
         wrongGroupsHasMore = false;
+        recentQuestionIds = [];
         currentQuestion = null;
         if (quizStatsCard) quizStatsCard.style.display = 'none';
     }
@@ -162,8 +190,15 @@ document.addEventListener('DOMContentLoaded', () => {
             quizModeSelect.value = localStorage.getItem('quizMode') || quizModeSelect.value;
             quizSourceSelect.value = localStorage.getItem('quizSource') || quizSourceSelect.value;
             quizLevelSelect.value = localStorage.getItem('quizLevel') || quizLevelSelect.value;
+            if (quizSectionSelect) {
+                quizSectionSelect.value = localStorage.getItem('quizSection') || quizSectionSelect.value;
+            }
         } catch (e) {
             console.error('Failed to load quiz preferences');
+        }
+
+        if (quizSectionSelect) {
+            quizSectionSelect.disabled = quizSourceSelect.value === 'online';
         }
     }
 
@@ -171,10 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('quizMode', quizModeSelect.value);
         localStorage.setItem('quizSource', quizSourceSelect.value);
         localStorage.setItem('quizLevel', quizLevelSelect.value);
+        if (quizSectionSelect) {
+            localStorage.setItem('quizSection', quizSectionSelect.value);
+        }
     }
 
     function checkAndStart() {
-        if (readFailed || !dataLoaded || !progressLoaded || !statsLoaded || quizStarted) return;
+        if (readFailed || !dataLoaded || !progressLoaded || !statsLoaded || !wrongReviewLoaded || quizStarted) return;
 
         quizStarted = true;
         loadNextQuestion();
@@ -199,6 +237,70 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         return byId;
+    }
+
+    function getVocabSortValue(item) {
+        if (item.timestamp) {
+            const timestampValue = Date.parse(item.timestamp);
+            if (!Number.isNaN(timestampValue)) return timestampValue;
+        }
+
+        const numericId = Number(item.id);
+        if (!Number.isNaN(numericId)) return numericId;
+        return Number.MAX_SAFE_INTEGER;
+    }
+
+    function prepareVocabSections() {
+        vocabData.sort((a, b) => {
+            const sortDiff = getVocabSortValue(a) - getVocabSortValue(b);
+            if (sortDiff !== 0) return sortDiff;
+            return String(a.firebaseKey || '').localeCompare(String(b.firebaseKey || ''));
+        });
+
+        vocabData.forEach((item, index) => {
+            item.sectionIndex = Math.floor(index / sectionSize);
+            item.sectionKey = `section-${item.sectionIndex + 1}`;
+        });
+    }
+
+    function getSelectedSectionKey() {
+        return quizSectionSelect ? quizSectionSelect.value || 'all' : 'all';
+    }
+
+    function getSectionLabel(sectionIndex, totalItems) {
+        const start = (sectionIndex * sectionSize) + 1;
+        const end = Math.min((sectionIndex + 1) * sectionSize, totalItems);
+        return `Section ${sectionIndex + 1} (${start}-${end})`;
+    }
+
+    function updateSectionOptions() {
+        if (!quizSectionSelect) return;
+
+        const preferredValue = localStorage.getItem('quizSection') || quizSectionSelect.value || 'all';
+        const sectionCount = Math.ceil(vocabData.length / sectionSize);
+        quizSectionSelect.innerHTML = '';
+
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = 'All Sections';
+        quizSectionSelect.appendChild(allOption);
+
+        for (let index = 0; index < sectionCount; index += 1) {
+            const option = document.createElement('option');
+            option.value = `section-${index + 1}`;
+            option.textContent = getSectionLabel(index, vocabData.length);
+            quizSectionSelect.appendChild(option);
+        }
+
+        const hasPreferredValue = Array.from(quizSectionSelect.options)
+            .some(option => option.value === preferredValue);
+        quizSectionSelect.value = hasPreferredValue ? preferredValue : 'all';
+    }
+
+    function getSelectedVocabData() {
+        const selectedSection = getSelectedSectionKey();
+        if (selectedSection === 'all') return vocabData;
+        return vocabData.filter(item => item.sectionKey === selectedSection);
     }
 
     function getAttemptLevel(attempt, vocabById) {
@@ -533,8 +635,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    [quizModeSelect, quizSourceSelect, quizLevelSelect].forEach(select => {
+    [quizModeSelect, quizSourceSelect, quizLevelSelect, quizSectionSelect].forEach(select => {
+        if (!select) return;
         select.addEventListener('change', () => {
+            if (select === quizSourceSelect && quizSectionSelect) {
+                quizSectionSelect.disabled = quizSourceSelect.value === 'online';
+            }
             savePreferences();
             loadNextQuestion();
         });
@@ -565,6 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
             vocabId: currentQuestion.vocabItem.id,
             source: currentQuestion.source,
             level: currentQuestion.vocabItem.level || '',
+            sectionKey: currentQuestion.vocabItem.sectionKey || '',
             direction: currentQuestion.direction,
             questionText: currentQuestion.questionText,
             userAnswer: answerInput.value.trim(),
@@ -634,12 +741,148 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getDueQuestions() {
+    function getSafeFirebaseKey(value) {
+        return String(value || '').replace(/[.#$\[\]/]/g, '_');
+    }
+
+    function getWrongReviewKey(questionId) {
+        return getSafeFirebaseKey(questionId);
+    }
+
+    function getWrongReviewRecord(questionId) {
+        return wrongReviewData[getWrongReviewKey(questionId)] || null;
+    }
+
+    function isRecentlyAsked(questionId) {
+        return recentQuestionIds.includes(questionId);
+    }
+
+    function rememberAnsweredQuestion(questionId) {
+        if (!questionId) return;
+        recentQuestionIds = recentQuestionIds.filter(id => id !== questionId);
+        recentQuestionIds.push(questionId);
+        if (recentQuestionIds.length > recentQuestionLimit) {
+            recentQuestionIds = recentQuestionIds.slice(-recentQuestionLimit);
+        }
+    }
+
+    function directionMatchesMode(direction) {
+        const mode = quizModeSelect.value;
+        return mode === 'mixed'
+            || (mode === 'de-to-en' && direction === 'German to English')
+            || (mode === 'en-to-de' && direction === 'English to German');
+    }
+
+    function getPracticeQuestions(selectedVocab, avoidRecent = true) {
+        const questions = [];
+        const mode = quizModeSelect.value;
+
+        selectedVocab.forEach(item => {
+            if (mode === 'mixed' || mode === 'de-to-en') {
+                const id = `${item.id}_de_to_en`;
+                if (!avoidRecent || !isRecentlyAsked(id)) {
+                    questions.push({ id, vocabItem: item, direction: 'German to English' });
+                }
+            }
+
+            if (mode === 'mixed' || mode === 'en-to-de') {
+                const id = `${item.id}_en_to_de`;
+                if (!avoidRecent || !isRecentlyAsked(id)) {
+                    questions.push({ id, vocabItem: item, direction: 'English to German' });
+                }
+            }
+        });
+
+        return questions;
+    }
+
+    function chooseRandomQuestion(questions) {
+        return questions[Math.floor(Math.random() * questions.length)];
+    }
+
+    function getWrongReviewQuestions(selectedVocab) {
+        const selectedItemsByQuestionId = {};
+
+        selectedVocab.forEach(item => {
+            selectedItemsByQuestionId[`${item.id}_de_to_en`] = {
+                vocabItem: item,
+                direction: 'German to English'
+            };
+            selectedItemsByQuestionId[`${item.id}_en_to_de`] = {
+                vocabItem: item,
+                direction: 'English to German'
+            };
+        });
+
+        return Object.values(wrongReviewData)
+            .filter(record => record && Number(record.correctStreak || 0) < wrongReviewTargetStreak)
+            .map(record => {
+                const question = selectedItemsByQuestionId[record.questionId];
+                if (!question || !directionMatchesMode(question.direction)) return null;
+                return {
+                    id: record.questionId,
+                    vocabItem: question.vocabItem,
+                    direction: question.direction,
+                    correctStreak: Number(record.correctStreak || 0),
+                    lastWrongAt: Number(record.lastWrongAt || 0),
+                    updatedAt: Number(record.updatedAt || 0)
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.correctStreak - b.correctStreak || b.lastWrongAt - a.lastWrongAt || b.updatedAt - a.updatedAt);
+    }
+
+    async function saveWrongReviewState(isCorrect) {
+        if (!currentUser || !currentQuestion || currentQuestion.source === 'online') return;
+
+        const key = getWrongReviewKey(currentQuestion.id);
+        const existing = getWrongReviewRecord(currentQuestion.id);
+        const wrongReviewItemRef = database.ref(`users/${currentUser.uid}/wrongReview/${key}`);
+        const now = Date.now();
+
+        if (isCorrect) {
+            if (!existing) return;
+
+            const nextStreak = Number(existing.correctStreak || 0) + 1;
+            if (nextStreak >= wrongReviewTargetStreak) {
+                delete wrongReviewData[key];
+                await wrongReviewItemRef.remove();
+                return;
+            }
+
+            wrongReviewData[key] = {
+                ...existing,
+                correctStreak: nextStreak,
+                updatedAt: now
+            };
+            await wrongReviewItemRef.update({
+                correctStreak: nextStreak,
+                updatedAt: now
+            });
+            return;
+        }
+
+        const record = {
+            questionId: currentQuestion.id,
+            vocabId: currentQuestion.vocabItem.id,
+            sectionKey: currentQuestion.vocabItem.sectionKey || 'section-1',
+            direction: currentQuestion.direction,
+            questionText: currentQuestion.questionText,
+            correctStreak: 0,
+            lastWrongAt: now,
+            updatedAt: now
+        };
+
+        wrongReviewData[key] = record;
+        await wrongReviewItemRef.set(record);
+    }
+
+    function getDueQuestions(selectedVocab = vocabData) {
         const now = Date.now();
         const dueQuestions = [];
         const mode = quizModeSelect.value;
 
-        vocabData.forEach(item => {
+        selectedVocab.forEach(item => {
             const idDeToEn = `${item.id}_de_to_en`;
             const idEnToDe = `${item.id}_en_to_de`;
 
@@ -840,17 +1083,38 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        quizForm.style.display = 'block';
-        const dueQuestions = getDueQuestions();
+        const selectedVocab = getSelectedVocabData();
+        if (selectedVocab.length === 0) {
+            quizForm.style.display = 'none';
+            noDataMsg.style.display = 'block';
+            noDataMsg.textContent = 'No vocabulary found in the selected section.';
+            return;
+        }
 
-        if (dueQuestions.length > 0) {
+        quizForm.style.display = 'block';
+        const wrongReviewQuestions = getWrongReviewQuestions(selectedVocab)
+            .filter(question => !isRecentlyAsked(question.id));
+        const dueQuestions = getDueQuestions(selectedVocab)
+            .filter(question => !isRecentlyAsked(question.id));
+        const shouldAskRetry = wrongReviewQuestions.length > 0
+            && (dueQuestions.length === 0 || Math.random() < retryQuestionChance);
+
+        if (shouldAskRetry) {
+            const poolSize = Math.max(1, Math.min(5, wrongReviewQuestions.length));
+            const selected = chooseRandomQuestion(wrongReviewQuestions.slice(0, poolSize));
+            setQuestionFromItem(selected.vocabItem, selected.direction, ` (Retry ${selected.correctStreak}/${wrongReviewTargetStreak})`);
+        } else if (dueQuestions.length > 0) {
             dueQuestions.sort((a, b) => a.streak - b.streak);
             const poolSize = Math.max(1, Math.floor(dueQuestions.length / 2));
-            const selected = dueQuestions[Math.floor(Math.random() * poolSize)];
+            const selected = chooseRandomQuestion(dueQuestions.slice(0, poolSize));
             setQuestionFromItem(selected.vocabItem, selected.direction);
         } else {
-            const vocabItem = vocabData[Math.floor(Math.random() * vocabData.length)];
-            setQuestionFromItem(vocabItem, chooseDirection(), ' (Practice)');
+            const practiceQuestions = getPracticeQuestions(selectedVocab, true);
+            const practicePool = practiceQuestions.length > 0
+                ? practiceQuestions
+                : getPracticeQuestions(selectedVocab, false);
+            const selected = chooseRandomQuestion(practicePool);
+            setQuestionFromItem(selected.vocabItem, selected.direction, ' (Practice)');
         }
 
         answerInput.focus();
@@ -920,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const now = Date.now();
 
         const isCorrect = !isIdk && validAnswerTokens.has(userAnswer);
+        rememberAnsweredQuestion(currentQuestion.id);
 
         if (isCorrect) {
             checkBtn.classList.add('success');
@@ -971,6 +1236,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentQuestion.source !== 'online') {
             saveProgress();
+            saveWrongReviewState(isCorrect).catch(error => {
+                console.error('Failed to save wrong-answer retry progress:', error);
+            });
         }
 
         saveAttempt(isCorrect, userAnswer, allValidAnswerStrings);
