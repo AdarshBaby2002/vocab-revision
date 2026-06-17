@@ -20,6 +20,7 @@ function initializeAuthUi(options = {}) {
     const {
         required = true,
         adminOnly = false,
+        importerOnly = false,
         onSignedIn = () => {},
         onSignedOut = () => {},
         formAction = 'sign-in'
@@ -36,6 +37,7 @@ function initializeAuthUi(options = {}) {
     const authStatus = document.getElementById('auth-status');
     const userBadge = document.getElementById('user-badge');
     const adminLink = document.getElementById('admin-link');
+    const importLink = document.getElementById('import-link');
 
     async function getAdminStatus(user) {
         if (!user) return false;
@@ -43,6 +45,18 @@ function initializeAuthUi(options = {}) {
 
         try {
             const snapshot = await database.ref(`admins/${user.uid}`).once('value');
+            return snapshot.val() === true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function getImporterStatus(user, isAdmin) {
+        if (!user) return false;
+        if (isAdmin) return true;
+
+        try {
+            const snapshot = await database.ref(`importers/${user.uid}`).once('value');
             return snapshot.val() === true;
         } catch (error) {
             return false;
@@ -182,6 +196,7 @@ function initializeAuthUi(options = {}) {
             if (authForm) authForm.style.display = '';
             if (signOutBtn) signOutBtn.style.display = 'none';
             if (adminLink) adminLink.style.display = 'none';
+            if (importLink) importLink.style.display = 'none';
             if (userBadge) userBadge.textContent = 'Not signed in';
             setAuthStatus(required ? 'Sign in to save your own progress.' : '');
             onSignedOut();
@@ -190,6 +205,7 @@ function initializeAuthUi(options = {}) {
         }
 
         const isAdmin = await getAdminStatus(user);
+        const canImport = await getImporterStatus(user, isAdmin);
         await ensureUserProfile(user, isAdmin);
 
         if (adminOnly && !isAdmin) {
@@ -197,8 +213,22 @@ function initializeAuthUi(options = {}) {
             if (authForm) authForm.style.display = 'none';
             if (signOutBtn) signOutBtn.style.display = 'inline-flex';
             if (adminLink) adminLink.style.display = 'none';
+            if (importLink) importLink.style.display = canImport ? 'inline-flex' : 'none';
             if (userBadge) userBadge.textContent = user.email;
             setAuthStatus('This account is signed in, but it is not an admin account.', 'status-error');
+            onSignedOut(user);
+            hidePageLoader();
+            return;
+        }
+
+        if (importerOnly && !canImport) {
+            if (authCard) authCard.style.display = 'block';
+            if (authForm) authForm.style.display = 'none';
+            if (signOutBtn) signOutBtn.style.display = 'inline-flex';
+            if (adminLink) adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
+            if (importLink) importLink.style.display = 'none';
+            if (userBadge) userBadge.textContent = user.email;
+            setAuthStatus('This account is signed in, but it does not have import access.', 'status-error');
             onSignedOut(user);
             hidePageLoader();
             return;
@@ -208,8 +238,9 @@ function initializeAuthUi(options = {}) {
         if (authForm) authForm.style.display = 'none';
         if (signOutBtn) signOutBtn.style.display = 'inline-flex';
         if (adminLink) adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
+        if (importLink) importLink.style.display = canImport ? 'inline-flex' : 'none';
         if (userBadge) userBadge.textContent = user.email;
         setAuthStatus(adminOnly ? 'Admin access granted.' : 'Signed in. Your quiz progress is private to this account.', 'status-success');
-        onSignedIn(user, { isAdmin });
+        onSignedIn(user, { isAdmin, canImport });
     });
 }

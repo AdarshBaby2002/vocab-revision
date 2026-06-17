@@ -20,15 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initializeAuthUi({
         required: true,
-        onSignedIn: (user) => {
+        onSignedIn: (user, { canImport }) => {
             currentUser = user;
-            form.style.display = 'block';
-            saveBtn.disabled = false;
+            form.style.display = canImport ? 'block' : 'none';
+            saveBtn.disabled = !canImport;
+            if (importBtn) importBtn.style.display = canImport ? 'inline-flex' : 'none';
         },
         onSignedOut: () => {
             currentUser = null;
             form.style.display = 'none';
             saveBtn.disabled = true;
+            if (importBtn) importBtn.style.display = 'none';
         }
     });
 

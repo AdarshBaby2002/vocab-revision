@@ -11,6 +11,7 @@ Static Firebase vocabulary revision app with per-user quiz progress.
 5. In Realtime Database, set `admins/<your UID>` to `true`.
 6. Deploy `database.rules.json` to Realtime Database rules.
 7. Publish the static files with Firebase Hosting or any static host.
+8. Use the Admin panel Learners list to tick `Can import vocabulary` for users who should be allowed to add shared vocab.
 
 Quiz progress and answer history are stored per learner:
 
@@ -26,8 +27,9 @@ Saved vocabulary remains shared at:
 vocab
 ```
 
-If you want only admins to add vocabulary, change the `vocab/.write` rule in `database.rules.json` to:
+Only admins and users listed under `importers/<uid>` can write shared vocabulary:
 
-```json
-"auth != null && root.child('admins').child(auth.uid).val() === true"
+```text
+admins/<uid>
+importers/<uid>
 ```

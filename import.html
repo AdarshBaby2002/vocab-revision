@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Vocabulary - Vocab Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-card">
+            <div class="loader-spinner" aria-hidden="true"></div>
+            <strong>Loading Import Page</strong>
+            <span>Checking import access...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="app-header">
+            <div class="header-top">
+                <div class="logo">
+                    <h1>Import Vocabulary</h1>
+                </div>
+                <div id="auth-card" class="auth-compact">
+                    <div id="auth-form" class="auth-actions">
+                        <a href="signin.html" class="btn-secondary btn-small" style="text-decoration: none;">Sign In</a>
+                        <a href="signup.html" class="btn-primary btn-small" style="text-decoration: none;">Sign Up</a>
+                    </div>
+                    <div class="auth-topline" style="margin-bottom: 0;">
+                        <strong id="user-badge" class="user-badge">Not signed in</strong>
+                        <button type="button" id="sign-out-btn" class="btn-secondary btn-small" style="display: none;">Sign Out</button>
+                    </div>
+                    <div id="auth-status" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="hero-section">
+                <p>Enter a section name and paste vocabulary lines.</p>
+                <div class="hero-actions">
+                    <a href="index.html" class="btn-secondary" style="text-decoration: none;">Home</a>
+                    <a href="quiz.html" class="btn-secondary" style="text-decoration: none;">Quiz</a>
+                    <a href="admin.html" id="admin-link" class="btn-secondary" style="display: none; text-decoration: none;">Admin</a>
+                </div>
+            </div>
+        </header>
+
+        <section id="import-content" class="glass-card" style="display: none;">
+            <div class="input-group">
+                <label for="import-section-name">Section Name</label>
+                <input type="text" id="import-section-name" placeholder="Example: A1 Verbs, Chapter 3, Exam Set 1" autocomplete="off" required>
+            </div>
+            <div class="input-group import-field">
+                <label for="import-text">Vocabulary Text</label>
+                <textarea id="import-text" rows="12" placeholder="benutzen - to use&#10;preiswert / kostengunstig - affordable&#10;die U-Bahn / die Strassenbahn - subway / tram"></textarea>
+            </div>
+            <div class="admin-actions import-actions">
+                <button type="button" id="import-vocab-btn" class="btn-primary btn-small">Import to DB</button>
+                <button type="button" id="clear-import-btn" class="btn-secondary btn-small">Clear Text</button>
+            </div>
+            <div id="import-status" class="admin-status"></div>
+        </section>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="auth.js"></script>
+    <script src="import.js"></script>
+</body>
+</html>

@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wordCount = document.getElementById('word-count');
     const usersList = document.getElementById('users-list');
     const refreshBtn = document.getElementById('refresh-admin-btn');
+    const importSectionName = document.getElementById('import-section-name');
     const importText = document.getElementById('import-text');
     const importBtn = document.getElementById('import-vocab-btn');
     const clearImportBtn = document.getElementById('clear-import-btn');
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let usersCache = {};
     let vocabCache = {};
+    let importersCache = {};
     let currentUser = null;
 
     initializeAuthUi({
@@ -39,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (clearImportBtn) {
         clearImportBtn.addEventListener('click', () => {
+            importSectionName.value = '';
             importText.value = '';
             showImportStatus('', '');
         });
@@ -61,13 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (refreshBtn) refreshBtn.disabled = true;
 
         try {
-            const [usersSnapshot, vocabSnapshot] = await Promise.all([
+            const [usersSnapshot, vocabSnapshot, importersSnapshot] = await Promise.all([
                 database.ref('users').once('value'),
-                database.ref('vocab').once('value')
+                database.ref('vocab').once('value'),
+                database.ref('importers').once('value')
             ]);
 
             usersCache = usersSnapshot.val() || {};
             vocabCache = vocabSnapshot.val() || {};
+            importersCache = importersSnapshot.val() || {};
 
             learnerCount.textContent = Object.keys(usersCache).length;
             wordCount.textContent = Object.keys(vocabCache).length;
@@ -114,6 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function createSectionKey(sectionName) {
+        const slug = normalizeText(sectionName)
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
+        return slug ? `named-section-${slug}` : '';
+    }
+
     function cleanImportLine(line) {
         return line
             .trim()
@@ -135,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function splitImportLine(line) {
-        const match = line.match(/\s+[–—-]\s+/);
+        const match = line.match(/\s+(?:-|\u2013|\u2014)\s+/);
         if (!match || typeof match.index !== 'number') return null;
 
         const german = line.slice(0, match.index).trim();
@@ -371,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return details;
     }
 
-    function addImportedEntry(entry, updates, localVocab, stats, timestampBase) {
+    function addImportedEntry(entry, updates, localVocab, stats, timestampBase, sectionName, sectionKey) {
         const normalizedEnglish = normalizeText(entry.english);
         const submittedAnswers = uniqueGermanAnswers([entry.german, ...(entry.synonyms || [])]);
         const matchingItems = localVocab.filter(item => normalizeText(item.english) === normalizedEnglish);
@@ -398,6 +411,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updates[`vocab/${matchingItem.firebaseKey}/updatedByEmail`] = currentUser.email || '';
 
             matchingItem.synonyms = updatedSynonyms;
+            if (!matchingItem.sectionName && sectionName) {
+                updates[`vocab/${matchingItem.firebaseKey}/sectionName`] = sectionName;
+                updates[`vocab/${matchingItem.firebaseKey}/sectionKey`] = sectionKey;
+                matchingItem.sectionName = sectionName;
+                matchingItem.sectionKey = sectionKey;
+            }
             stats.merged += 1;
             return;
         }
@@ -412,6 +431,8 @@ document.addEventListener('DOMContentLoaded', () => {
             createdBy: currentUser.uid,
             createdByEmail: currentUser.email || '',
             source: 'admin-import',
+            sectionName,
+            sectionKey,
             timestamp: new Date().toISOString()
         };
 
@@ -424,8 +445,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentUser) return;
 
         const text = importText.value.trim();
+        const sectionName = importSectionName.value.trim();
+        const sectionKey = createSectionKey(sectionName);
+        if (!sectionName) {
+            showImportStatus('Enter a section name before importing.', 'error');
+            importSectionName.focus();
+            return;
+        }
+
         if (!text) {
             showImportStatus('Paste vocabulary lines before importing.', 'error');
+            importText.focus();
             return;
         }
 
@@ -445,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const timestampBase = Date.now();
 
             entries.forEach(entry => {
-                addImportedEntry(entry, updates, localVocab, stats, timestampBase);
+                addImportedEntry(entry, updates, localVocab, stats, timestampBase, sectionName, sectionKey);
             });
 
             if (Object.keys(updates).length > 0) {
@@ -555,6 +585,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const actions = document.createElement('div');
             actions.className = 'admin-actions';
 
+            const importAccessLabel = document.createElement('label');
+            importAccessLabel.className = 'checkbox-row';
+
+            const importAccessCheckbox = document.createElement('input');
+            importAccessCheckbox.type = 'checkbox';
+            importAccessCheckbox.checked = importersCache[uid] === true;
+            importAccessCheckbox.disabled = uid === currentUser.uid;
+            importAccessCheckbox.addEventListener('change', () => {
+                handleImporterAccessChange(uid, profile.email, importAccessCheckbox.checked, importAccessCheckbox);
+            });
+
+            const importAccessText = document.createElement('span');
+            importAccessText.textContent = 'Can import vocabulary';
+
+            importAccessLabel.appendChild(importAccessCheckbox);
+            importAccessLabel.appendChild(importAccessText);
+
             const resetBtn = document.createElement('button');
             resetBtn.className = 'btn-secondary btn-small';
             resetBtn.textContent = 'Reset Password';
@@ -580,6 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(statGrid);
             row.appendChild(renderLevelStats(stats));
             row.appendChild(small);
+            row.appendChild(importAccessLabel);
             row.appendChild(actions);
             usersList.appendChild(row);
         });
@@ -604,6 +652,27 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error sending reset email:', error);
             alert('Failed to send reset email: ' + error.message);
+        }
+    }
+
+    async function handleImporterAccessChange(uid, email, canImport, checkbox) {
+        const label = email || uid;
+        checkbox.disabled = true;
+
+        try {
+            await database.ref(`importers/${uid}`).set(canImport ? true : null);
+            if (canImport) {
+                importersCache[uid] = true;
+            } else {
+                delete importersCache[uid];
+            }
+            showImportStatus(`${label} ${canImport ? 'can now import vocabulary.' : 'can no longer import vocabulary.'}`, 'success');
+        } catch (error) {
+            console.error('Failed to update import access:', error);
+            checkbox.checked = !canImport;
+            showImportStatus('Failed to update import access: ' + error.message, 'error');
+        } finally {
+            checkbox.disabled = uid === currentUser.uid;
         }
     }
 
