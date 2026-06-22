@@ -405,15 +405,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...newAnswers
             ]).filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(matchingItem.german));
 
-            updates[`vocab/${matchingItem.firebaseKey}/synonyms`] = updatedSynonyms;
-            updates[`vocab/${matchingItem.firebaseKey}/updatedAt`] = new Date().toISOString();
-            updates[`vocab/${matchingItem.firebaseKey}/updatedBy`] = currentUser.uid;
-            updates[`vocab/${matchingItem.firebaseKey}/updatedByEmail`] = currentUser.email || '';
+            const itemPath = `vocab/${matchingItem.firebaseKey}`;
+            const now = new Date().toISOString();
+            const mergedFields = {
+                synonyms: updatedSynonyms,
+                updatedAt: now,
+                updatedBy: currentUser.uid,
+                updatedByEmail: currentUser.email || ''
+            };
+
+            if (updates[itemPath]) {
+                Object.assign(updates[itemPath], mergedFields);
+            } else {
+                Object.entries(mergedFields).forEach(([field, value]) => {
+                    updates[`${itemPath}/${field}`] = value;
+                });
+            }
 
             matchingItem.synonyms = updatedSynonyms;
             if (!matchingItem.sectionName && sectionName) {
-                updates[`vocab/${matchingItem.firebaseKey}/sectionName`] = sectionName;
-                updates[`vocab/${matchingItem.firebaseKey}/sectionKey`] = sectionKey;
+                if (updates[itemPath]) {
+                    Object.assign(updates[itemPath], { sectionName, sectionKey });
+                } else {
+                    updates[`${itemPath}/sectionName`] = sectionName;
+                    updates[`${itemPath}/sectionKey`] = sectionKey;
+                }
                 matchingItem.sectionName = sectionName;
                 matchingItem.sectionKey = sectionKey;
             }
