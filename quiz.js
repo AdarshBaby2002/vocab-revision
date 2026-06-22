@@ -257,9 +257,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return String(a.firebaseKey || '').localeCompare(String(b.firebaseKey || ''));
         });
 
-        vocabData.forEach((item, index) => {
-            item.sectionIndex = Math.floor(index / sectionSize);
+        const unsectionedTotal = vocabData.filter(item => !String(item.sectionName || '').trim()).length;
+        let unsectionedIndex = 0;
+        vocabData.forEach(item => {
+            const sectionName = String(item.sectionName || '').trim();
+            if (sectionName) {
+                item.sectionName = sectionName;
+                item.sectionKey = item.sectionKey || createSectionKey(sectionName);
+                return;
+            }
+
+            item.sectionIndex = Math.floor(unsectionedIndex / sectionSize);
             item.sectionKey = `section-${item.sectionIndex + 1}`;
+            item.sectionName = getSectionLabel(item.sectionIndex, unsectionedTotal);
+            unsectionedIndex += 1;
         });
     }
 
@@ -273,11 +284,39 @@ document.addEventListener('DOMContentLoaded', () => {
         return `Section ${sectionIndex + 1} (${start}-${end})`;
     }
 
+    function createSectionKey(sectionName) {
+        const slug = normalizeText(sectionName)
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
+        return slug ? `named-section-${slug}` : '';
+    }
+
+    function getAvailableSections() {
+        const sectionsByKey = new Map();
+
+        vocabData.forEach(item => {
+            if (!item.sectionKey) return;
+
+            if (!sectionsByKey.has(item.sectionKey)) {
+                sectionsByKey.set(item.sectionKey, {
+                    key: item.sectionKey,
+                    label: item.sectionName || item.sectionKey,
+                    count: 0
+                });
+            }
+
+            sectionsByKey.get(item.sectionKey).count += 1;
+        });
+
+        return Array.from(sectionsByKey.values());
+    }
+
     function updateSectionOptions() {
         if (!quizSectionSelect) return;
 
         const preferredValue = localStorage.getItem('quizSection') || quizSectionSelect.value || 'all';
-        const sectionCount = Math.ceil(vocabData.length / sectionSize);
+        const sections = getAvailableSections();
         quizSectionSelect.innerHTML = '';
 
         const allOption = document.createElement('option');
@@ -285,12 +324,12 @@ document.addEventListener('DOMContentLoaded', () => {
         allOption.textContent = 'All Sections';
         quizSectionSelect.appendChild(allOption);
 
-        for (let index = 0; index < sectionCount; index += 1) {
+        sections.forEach(section => {
             const option = document.createElement('option');
-            option.value = `section-${index + 1}`;
-            option.textContent = getSectionLabel(index, vocabData.length);
+            option.value = section.key;
+            option.textContent = `${section.label} (${section.count})`;
             quizSectionSelect.appendChild(option);
-        }
+        });
 
         const hasPreferredValue = Array.from(quizSectionSelect.options)
             .some(option => option.value === preferredValue);

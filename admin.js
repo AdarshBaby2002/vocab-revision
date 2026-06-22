@@ -206,6 +206,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     }
 
+    function applyVocabFieldUpdates(updates, firebaseKey, fields) {
+        const itemPath = `vocab/${firebaseKey}`;
+
+        if (updates[itemPath]) {
+            Object.assign(updates[itemPath], fields);
+            return;
+        }
+
+        Object.entries(fields).forEach(([field, value]) => {
+            updates[`${itemPath}/${field}`] = value;
+        });
+    }
+
     function buildVocabById() {
         const byId = {};
         Object.values(vocabCache).forEach(item => {
@@ -396,6 +409,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const newAnswers = submittedAnswers.filter(answer => !existingAnswerKeys.has(normalizeGermanAnswer(answer)));
 
             if (newAnswers.length === 0) {
+                if (!matchingItem.sectionName && sectionName) {
+                    applyVocabFieldUpdates(updates, matchingItem.firebaseKey, {
+                        sectionName,
+                        sectionKey,
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: currentUser.uid,
+                        updatedByEmail: currentUser.email || ''
+                    });
+                    matchingItem.sectionName = sectionName;
+                    matchingItem.sectionKey = sectionKey;
+                    stats.merged += 1;
+                    return;
+                }
+
                 stats.skippedDuplicates += 1;
                 return;
             }
@@ -405,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...newAnswers
             ]).filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(matchingItem.german));
 
-            const itemPath = `vocab/${matchingItem.firebaseKey}`;
             const now = new Date().toISOString();
             const mergedFields = {
                 synonyms: updatedSynonyms,
@@ -414,22 +440,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatedByEmail: currentUser.email || ''
             };
 
-            if (updates[itemPath]) {
-                Object.assign(updates[itemPath], mergedFields);
-            } else {
-                Object.entries(mergedFields).forEach(([field, value]) => {
-                    updates[`${itemPath}/${field}`] = value;
-                });
-            }
+            applyVocabFieldUpdates(updates, matchingItem.firebaseKey, mergedFields);
 
             matchingItem.synonyms = updatedSynonyms;
             if (!matchingItem.sectionName && sectionName) {
-                if (updates[itemPath]) {
-                    Object.assign(updates[itemPath], { sectionName, sectionKey });
-                } else {
-                    updates[`${itemPath}/sectionName`] = sectionName;
-                    updates[`${itemPath}/sectionKey`] = sectionKey;
-                }
+                applyVocabFieldUpdates(updates, matchingItem.firebaseKey, { sectionName, sectionKey });
                 matchingItem.sectionName = sectionName;
                 matchingItem.sectionKey = sectionKey;
             }
