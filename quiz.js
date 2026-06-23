@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const quizSourceSelect = document.getElementById('quiz-source');
     const quizLevelSelect = document.getElementById('quiz-level');
     const quizSectionSelect = document.getElementById('quiz-section');
+    const askUnaskedFirstCheckbox = document.getElementById('ask-unasked-first');
+    const sectionQuestionCount = document.getElementById('section-question-count');
     const quizStatsCard = document.getElementById('quiz-stats-card');
     const quizStatsContent = document.getElementById('quiz-stats-content');
 
@@ -120,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             prepareVocabSections();
             updateSectionOptions();
+            updateSectionQuestionCount();
             dataLoaded = true;
             checkAndStart();
         }, (error) => {
@@ -129,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressRef.on('value', (snapshot) => {
             quizProgress = snapshot.val() || {};
             progressLoaded = true;
+            updateSectionQuestionCount();
             checkAndStart();
         }, (error) => {
             showReadError(`Could not load quiz progress: ${error.message}`);
@@ -193,6 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (quizSectionSelect) {
                 quizSectionSelect.value = localStorage.getItem('quizSection') || quizSectionSelect.value;
             }
+            if (askUnaskedFirstCheckbox) {
+                askUnaskedFirstCheckbox.checked = localStorage.getItem('askUnaskedFirst') === 'true';
+            }
         } catch (e) {
             console.error('Failed to load quiz preferences');
         }
@@ -208,6 +215,9 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('quizLevel', quizLevelSelect.value);
         if (quizSectionSelect) {
             localStorage.setItem('quizSection', quizSectionSelect.value);
+        }
+        if (askUnaskedFirstCheckbox) {
+            localStorage.setItem('askUnaskedFirst', askUnaskedFirstCheckbox.checked ? 'true' : 'false');
         }
     }
 
@@ -340,6 +350,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedSection = getSelectedSectionKey();
         if (selectedSection === 'all') return vocabData;
         return vocabData.filter(item => item.sectionKey === selectedSection);
+    }
+
+    function getQuestionIdsForVocab(selectedVocab = getSelectedVocabData()) {
+        const ids = [];
+        const mode = quizModeSelect.value;
+
+        selectedVocab.forEach(item => {
+            if (mode === 'mixed' || mode === 'de-to-en') {
+                ids.push(`${item.id}_de_to_en`);
+            }
+
+            if (mode === 'mixed' || mode === 'en-to-de') {
+                ids.push(`${item.id}_en_to_de`);
+            }
+        });
+
+        return ids;
+    }
+
+    function getUnaskedQuestionCount(selectedVocab = getSelectedVocabData()) {
+        return getQuestionIdsForVocab(selectedVocab)
+            .filter(id => !quizProgress[id])
+            .length;
+    }
+
+    function updateSectionQuestionCount() {
+        if (!sectionQuestionCount) return;
+
+        if (quizSourceSelect.value === 'online') {
+            sectionQuestionCount.textContent = 'Section count is available for saved data only.';
+            return;
+        }
+
+        const selectedVocab = getSelectedVocabData();
+        const total = getQuestionIdsForVocab(selectedVocab).length;
+        const unasked = getUnaskedQuestionCount(selectedVocab);
+        const sectionLabel = quizSectionSelect && quizSectionSelect.selectedOptions[0]
+            ? quizSectionSelect.selectedOptions[0].textContent.replace(/\s+\(\d+\)$/, '')
+            : 'selected section';
+
+        sectionQuestionCount.textContent = `${unasked} of ${total} questions still not asked in ${sectionLabel}.`;
     }
 
     function getAttemptLevel(attempt, vocabById) {
@@ -681,9 +732,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 quizSectionSelect.disabled = quizSourceSelect.value === 'online';
             }
             savePreferences();
+            updateSectionQuestionCount();
             loadNextQuestion();
         });
     });
+
+    if (askUnaskedFirstCheckbox) {
+        askUnaskedFirstCheckbox.addEventListener('change', () => {
+            savePreferences();
+            loadNextQuestion();
+        });
+    }
 
     newQuestionBtn.addEventListener('click', () => {
         loadNextQuestion();
@@ -833,6 +892,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return questions;
+    }
+
+    function getUnaskedQuestions(selectedVocab, avoidRecent = true) {
+        return getPracticeQuestions(selectedVocab, avoidRecent)
+            .filter(question => !quizProgress[question.id]);
     }
 
     function chooseRandomQuestion(questions) {
@@ -1131,14 +1195,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         quizForm.style.display = 'block';
+        updateSectionQuestionCount();
         const wrongReviewQuestions = getWrongReviewQuestions(selectedVocab)
             .filter(question => !isRecentlyAsked(question.id));
+        const unaskedQuestions = getUnaskedQuestions(selectedVocab, true);
         const dueQuestions = getDueQuestions(selectedVocab)
             .filter(question => !isRecentlyAsked(question.id));
+        const askUnaskedFirst = askUnaskedFirstCheckbox && askUnaskedFirstCheckbox.checked;
+        const hasUnaskedQuestions = getUnaskedQuestionCount(selectedVocab) > 0;
         const shouldAskRetry = wrongReviewQuestions.length > 0
             && (dueQuestions.length === 0 || Math.random() < retryQuestionChance);
 
-        if (shouldAskRetry) {
+        if (askUnaskedFirst && hasUnaskedQuestions) {
+            const selected = chooseRandomQuestion(
+                unaskedQuestions.length > 0 ? unaskedQuestions : getUnaskedQuestions(selectedVocab, false)
+            );
+            setQuestionFromItem(selected.vocabItem, selected.direction, ' (New)');
+        } else if (askUnaskedFirst && wrongReviewQuestions.length > 0) {
+            const poolSize = Math.max(1, Math.min(5, wrongReviewQuestions.length));
+            const selected = chooseRandomQuestion(wrongReviewQuestions.slice(0, poolSize));
+            setQuestionFromItem(selected.vocabItem, selected.direction, ` (Retry ${selected.correctStreak}/${wrongReviewTargetStreak})`);
+        } else if (shouldAskRetry) {
             const poolSize = Math.max(1, Math.min(5, wrongReviewQuestions.length));
             const selected = chooseRandomQuestion(wrongReviewQuestions.slice(0, poolSize));
             setQuestionFromItem(selected.vocabItem, selected.direction, ` (Retry ${selected.correctStreak}/${wrongReviewTargetStreak})`);
@@ -1275,6 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentQuestion.source !== 'online') {
             saveProgress();
+            updateSectionQuestionCount();
             saveWrongReviewState(isCorrect).catch(error => {
                 console.error('Failed to save wrong-answer retry progress:', error);
             });

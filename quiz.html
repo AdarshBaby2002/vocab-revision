@@ -90,6 +90,15 @@
         </header>
 
         <div class="glass-card" id="quiz-card">
+            <div class="quiz-card-toolbar">
+                <label class="quiz-toggle">
+                    <input type="checkbox" id="ask-unasked-first">
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                    <span class="toggle-label">Ask unasked first</span>
+                </label>
+                <div id="section-question-count" class="quiz-count-status"></div>
+            </div>
+
             <div id="no-data-msg" style="display: none; text-align: center; color: var(--text-secondary);">
                 You haven't saved any vocabulary yet. Go back to Home and add some words first!
             </div>
@@ -146,6 +155,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="firebase-init.js"></script>
     <script src="auth.js"></script>
-    <script src="quiz.js?v=20260622-heading-sections"></script>
+    <script src="quiz.js?v=20260623-unasked-count"></script>
 </body>
 </html>
