@@ -450,8 +450,21 @@ select {
     color: #c084fc;
 }
 
+.vocab-german-group {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.vocab-synonyms {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.35;
+}
+
 .vocab-english {
     color: var(--text-secondary);
+    text-align: right;
 }
 
 /* Animations */
@@ -615,6 +628,12 @@ select {
     font-size: 1.25rem;
 }
 
+.panel-note {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-align: right;
+}
+
 .admin-list {
     display: grid;
     gap: 0.75rem;
@@ -632,6 +651,52 @@ select {
 .admin-row span,
 .admin-row small {
     color: var(--text-secondary);
+}
+
+.section-manager {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.section-list {
+    max-height: 520px;
+    overflow: auto;
+}
+
+.section-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+}
+
+.section-row strong,
+.section-row span {
+    min-width: 0;
+}
+
+.section-row span {
+    grid-column: 1;
+}
+
+.section-row button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.section-row.is-selected {
+    border-color: rgba(129, 140, 248, 0.7);
+    background: rgba(99, 102, 241, 0.16);
+}
+
+.section-editor {
+    display: grid;
+    gap: 1rem;
+}
+
+.section-editor textarea {
+    min-height: 360px;
+    font-size: 0.95rem;
 }
 
 .checkbox-row {
@@ -839,6 +904,14 @@ select {
 
     .admin-panel {
         grid-column: span 1;
+    }
+
+    .section-manager {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-note {
+        text-align: left;
     }
 }
 

@@ -55,6 +55,10 @@
                 <span>Saved Words</span>
                 <strong id="word-count">0</strong>
             </div>
+            <div class="glass-card stat-card">
+                <span>Sections</span>
+                <strong id="section-count">0</strong>
+            </div>
 
             <div class="glass-card admin-panel">
                 <div class="panel-heading">
@@ -74,6 +78,32 @@
                     <button type="button" id="clear-import-btn" class="btn-secondary btn-small">Clear Text</button>
                 </div>
                 <div id="import-status" class="admin-status"></div>
+            </div>
+
+            <div class="glass-card admin-panel">
+                <div class="panel-heading">
+                    <h2>Saved Sections</h2>
+                    <span id="section-editor-heading" class="panel-note">Select a section to edit it.</span>
+                </div>
+                <div class="section-manager">
+                    <div id="sections-list" class="admin-list section-list"></div>
+                    <div id="section-editor" class="section-editor" style="display: none;">
+                        <div class="input-group">
+                            <label for="edit-section-name">Section Name</label>
+                            <input type="text" id="edit-section-name" autocomplete="off">
+                        </div>
+                        <div class="input-group">
+                            <label for="edit-section-text">Vocabulary Lines</label>
+                            <textarea id="edit-section-text" rows="12" placeholder="benutzen - to use&#10;preiswert / kostengunstig - affordable"></textarea>
+                        </div>
+                        <div class="admin-actions import-actions">
+                            <button type="button" id="save-section-btn" class="btn-primary btn-small">Save Section</button>
+                            <button type="button" id="delete-section-btn" class="btn-danger btn-small">Delete Section</button>
+                            <button type="button" id="cancel-section-edit-btn" class="btn-secondary btn-small">Cancel</button>
+                        </div>
+                        <div id="section-edit-status" class="admin-status"></div>
+                    </div>
+                </div>
             </div>
 
             <div class="glass-card admin-panel">

@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
     const learnerCount = document.getElementById('learner-count');
     const wordCount = document.getElementById('word-count');
+    const sectionCount = document.getElementById('section-count');
     const usersList = document.getElementById('users-list');
     const refreshBtn = document.getElementById('refresh-admin-btn');
     const importSectionName = document.getElementById('import-section-name');
@@ -11,11 +12,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearVocabBtn = document.getElementById('clear-vocab-btn');
     const resetAllQuizBtn = document.getElementById('reset-all-quiz-btn');
     const importStatus = document.getElementById('import-status');
+    const sectionsList = document.getElementById('sections-list');
+    const sectionEditor = document.getElementById('section-editor');
+    const sectionEditorHeading = document.getElementById('section-editor-heading');
+    const editSectionName = document.getElementById('edit-section-name');
+    const editSectionText = document.getElementById('edit-section-text');
+    const saveSectionBtn = document.getElementById('save-section-btn');
+    const deleteSectionBtn = document.getElementById('delete-section-btn');
+    const cancelSectionEditBtn = document.getElementById('cancel-section-edit-btn');
+    const sectionEditStatus = document.getElementById('section-edit-status');
 
     let usersCache = {};
     let vocabCache = {};
     let importersCache = {};
     let currentUser = null;
+    let selectedSectionKey = '';
 
     initializeAuthUi({
         required: true,
@@ -55,12 +66,33 @@ document.addEventListener('DOMContentLoaded', () => {
         resetAllQuizBtn.addEventListener('click', handleResetAllQuizStatus);
     }
 
+    if (saveSectionBtn) {
+        saveSectionBtn.addEventListener('click', handleSaveSection);
+    }
+
+    if (deleteSectionBtn) {
+        deleteSectionBtn.addEventListener('click', handleDeleteSection);
+    }
+
+    if (cancelSectionEditBtn) {
+        cancelSectionEditBtn.addEventListener('click', () => {
+            clearSectionEditor();
+            renderSections();
+        });
+    }
+
     async function loadAdminData() {
         learnerCount.textContent = '...';
         wordCount.textContent = '...';
+        if (sectionCount) sectionCount.textContent = '...';
         usersList.innerHTML = '';
         usersList.appendChild(emptyState('Loading admin data...'));
+        if (sectionsList) {
+            sectionsList.innerHTML = '';
+            sectionsList.appendChild(emptyState('Loading sections...'));
+        }
         showImportStatus('Loading admin data...', '');
+        showSectionEditStatus('', '');
         if (refreshBtn) refreshBtn.disabled = true;
 
         try {
@@ -76,15 +108,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             learnerCount.textContent = Object.keys(usersCache).length;
             wordCount.textContent = Object.keys(vocabCache).length;
+            if (sectionCount) sectionCount.textContent = getSectionSummaries().length;
 
             renderUsers();
+            renderSections();
             showImportStatus('', '');
         } catch (error) {
             console.error('Failed to load admin data:', error);
             learnerCount.textContent = '!';
             wordCount.textContent = '!';
+            if (sectionCount) sectionCount.textContent = '!';
             usersList.innerHTML = '';
             usersList.appendChild(emptyState('Could not load learners. Check database access and try again.'));
+            if (sectionsList) {
+                sectionsList.innerHTML = '';
+                sectionsList.appendChild(emptyState('Could not load sections.'));
+            }
             showImportStatus('Could not load admin data: ' + error.message, 'error');
         } finally {
             if (refreshBtn) refreshBtn.disabled = false;
@@ -204,6 +243,138 @@ document.addEventListener('DOMContentLoaded', () => {
             firebaseKey,
             ...item
         }));
+    }
+
+    function getItemSectionKey(item) {
+        const storedKey = String(item.sectionKey || '').trim();
+        if (storedKey) return storedKey;
+
+        const sectionName = String(item.sectionName || '').trim();
+        if (sectionName) return createSectionKey(sectionName);
+
+        return 'unsectioned';
+    }
+
+    function getSectionSummaries() {
+        const sections = new Map();
+
+        buildVocabArray().forEach(item => {
+            const key = getItemSectionKey(item);
+            const label = String(item.sectionName || '').trim() || 'No section';
+
+            if (!sections.has(key)) {
+                sections.set(key, {
+                    key,
+                    label,
+                    count: 0,
+                    latestTimestamp: ''
+                });
+            }
+
+            const section = sections.get(key);
+            section.count += 1;
+            section.latestTimestamp = [section.latestTimestamp, item.updatedAt, item.timestamp]
+                .filter(Boolean)
+                .sort()
+                .pop() || '';
+        });
+
+        return Array.from(sections.values())
+            .sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    function getSectionItems(sectionKey) {
+        return buildVocabArray()
+            .filter(item => getItemSectionKey(item) === sectionKey)
+            .sort((a, b) => {
+                const idA = Number(a.id || 0);
+                const idB = Number(b.id || 0);
+                if (idA !== idB) return idA - idB;
+                return String(a.firebaseKey).localeCompare(String(b.firebaseKey));
+            });
+    }
+
+    function formatSectionLine(item) {
+        const germanParts = [item.german, ...(Array.isArray(item.synonyms) ? item.synonyms : [])]
+            .map(value => String(value || '').trim())
+            .filter(Boolean);
+
+        return `${germanParts.join(' / ')} - ${String(item.english || '').trim()}`;
+    }
+
+    function renderSections() {
+        if (!sectionsList) return;
+
+        sectionsList.innerHTML = '';
+        const sections = getSectionSummaries();
+        if (sectionCount) sectionCount.textContent = sections.length;
+
+        if (sections.length === 0) {
+            sectionsList.appendChild(emptyState('No sections yet.'));
+            clearSectionEditor();
+            return;
+        }
+
+        sections.forEach(section => {
+            const row = document.createElement('article');
+            row.className = section.key === selectedSectionKey
+                ? 'admin-row section-row is-selected'
+                : 'admin-row section-row';
+
+            const title = document.createElement('strong');
+            title.textContent = section.label;
+
+            const meta = document.createElement('span');
+            meta.textContent = `${section.count} ${section.count === 1 ? 'word' : 'words'}`;
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'btn-secondary btn-small';
+            editBtn.textContent = 'Edit';
+            editBtn.addEventListener('click', () => openSectionEditor(section.key));
+
+            row.appendChild(title);
+            row.appendChild(meta);
+            row.appendChild(editBtn);
+            sectionsList.appendChild(row);
+        });
+
+        if (selectedSectionKey && !sections.some(section => section.key === selectedSectionKey)) {
+            clearSectionEditor();
+        }
+    }
+
+    function openSectionEditor(sectionKey) {
+        const items = getSectionItems(sectionKey);
+        if (items.length === 0) {
+            clearSectionEditor();
+            showSectionEditStatus('That section no longer exists.', 'error');
+            return;
+        }
+
+        selectedSectionKey = sectionKey;
+        const sectionName = String(items[0].sectionName || '').trim() || 'No section';
+        editSectionName.value = sectionName === 'No section' ? '' : sectionName;
+        editSectionText.value = items.map(formatSectionLine).join('\n');
+        sectionEditor.style.display = 'grid';
+        sectionEditorHeading.textContent = `${sectionName} (${items.length})`;
+        showSectionEditStatus('', '');
+        renderSections();
+    }
+
+    function clearSectionEditor() {
+        selectedSectionKey = '';
+        if (editSectionName) editSectionName.value = '';
+        if (editSectionText) editSectionText.value = '';
+        if (sectionEditor) sectionEditor.style.display = 'none';
+        if (sectionEditorHeading) sectionEditorHeading.textContent = 'Select a section to edit it.';
+        showSectionEditStatus('', '');
+    }
+
+    function showSectionEditStatus(message, type) {
+        if (!sectionEditStatus) return;
+        sectionEditStatus.textContent = message;
+        sectionEditStatus.className = type ? `admin-status status-${type}` : 'admin-status';
     }
 
     function applyVocabFieldUpdates(updates, firebaseKey, fields) {
@@ -553,6 +724,145 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             clearVocabBtn.disabled = false;
             clearVocabBtn.textContent = 'Clear All Vocabulary';
+        }
+    }
+
+    async function handleSaveSection() {
+        if (!currentUser || !selectedSectionKey) return;
+
+        const sectionName = editSectionName.value.trim();
+        const text = editSectionText.value.trim();
+        const newSectionKey = createSectionKey(sectionName);
+
+        if (!sectionName) {
+            showSectionEditStatus('Enter a section name before saving.', 'error');
+            editSectionName.focus();
+            return;
+        }
+
+        if (!text) {
+            showSectionEditStatus('Enter vocabulary lines before saving.', 'error');
+            editSectionText.focus();
+            return;
+        }
+
+        const existingSection = getSectionSummaries()
+            .find(section => section.key === newSectionKey && section.key !== selectedSectionKey);
+        if (existingSection) {
+            showSectionEditStatus(`A section named "${existingSection.label}" already exists. Choose a different name.`, 'error');
+            editSectionName.focus();
+            return;
+        }
+
+        const { entries, skipped } = parseImportText(text);
+        if (entries.length === 0) {
+            showSectionEditStatus('No valid vocabulary lines found.', 'error');
+            return;
+        }
+
+        if (skipped.length > 0 && !confirm(`Lines ${skipped.join(', ')} could not be read and will be ignored. Save anyway?`)) {
+            return;
+        }
+
+        const originalItems = getSectionItems(selectedSectionKey);
+        if (originalItems.length === 0) {
+            showSectionEditStatus('This section no longer exists. Refresh and try again.', 'error');
+            return;
+        }
+
+        saveSectionBtn.disabled = true;
+        saveSectionBtn.textContent = 'Saving...';
+        if (deleteSectionBtn) deleteSectionBtn.disabled = true;
+
+        try {
+            const updates = {};
+            const now = new Date().toISOString();
+            const timestampBase = Date.now();
+
+            entries.forEach((entry, index) => {
+                const fields = {
+                    german: entry.german,
+                    english: entry.english,
+                    synonyms: uniqueGermanAnswers(entry.synonyms || [])
+                        .filter(answer => normalizeGermanAnswer(answer) !== normalizeGermanAnswer(entry.german)),
+                    sectionName,
+                    sectionKey: newSectionKey,
+                    updatedAt: now,
+                    updatedBy: currentUser.uid,
+                    updatedByEmail: currentUser.email || ''
+                };
+
+                const existingItem = originalItems[index];
+                if (existingItem) {
+                    applyVocabFieldUpdates(updates, existingItem.firebaseKey, fields);
+                    return;
+                }
+
+                const newKey = database.ref('vocab').push().key;
+                updates[`vocab/${newKey}`] = {
+                    id: timestampBase + index,
+                    ...fields,
+                    createdBy: currentUser.uid,
+                    createdByEmail: currentUser.email || '',
+                    source: 'admin-section-edit',
+                    timestamp: now
+                };
+            });
+
+            originalItems.slice(entries.length).forEach(item => {
+                updates[`vocab/${item.firebaseKey}`] = null;
+            });
+
+            await database.ref().update(updates);
+            selectedSectionKey = newSectionKey;
+            await loadAdminData();
+            openSectionEditor(newSectionKey);
+            showSectionEditStatus(`Saved ${entries.length} ${entries.length === 1 ? 'word' : 'words'} in "${sectionName}".`, 'success');
+        } catch (error) {
+            console.error('Failed to save section:', error);
+            showSectionEditStatus('Failed to save section: ' + error.message, 'error');
+        } finally {
+            saveSectionBtn.disabled = false;
+            saveSectionBtn.textContent = 'Save Section';
+            if (deleteSectionBtn) deleteSectionBtn.disabled = false;
+        }
+    }
+
+    async function handleDeleteSection() {
+        if (!currentUser || !selectedSectionKey) return;
+
+        const items = getSectionItems(selectedSectionKey);
+        if (items.length === 0) {
+            showSectionEditStatus('This section no longer exists.', 'error');
+            return;
+        }
+
+        const sectionName = editSectionName.value.trim() || 'this section';
+        if (!confirm(`Delete "${sectionName}" and its ${items.length} ${items.length === 1 ? 'word' : 'words'}? This cannot be undone.`)) {
+            return;
+        }
+
+        deleteSectionBtn.disabled = true;
+        deleteSectionBtn.textContent = 'Deleting...';
+        if (saveSectionBtn) saveSectionBtn.disabled = true;
+
+        try {
+            const updates = {};
+            items.forEach(item => {
+                updates[`vocab/${item.firebaseKey}`] = null;
+            });
+
+            await database.ref().update(updates);
+            clearSectionEditor();
+            await loadAdminData();
+            showImportStatus(`Deleted "${sectionName}".`, 'success');
+        } catch (error) {
+            console.error('Failed to delete section:', error);
+            showSectionEditStatus('Failed to delete section: ' + error.message, 'error');
+        } finally {
+            deleteSectionBtn.disabled = false;
+            deleteSectionBtn.textContent = 'Delete Section';
+            if (saveSectionBtn) saveSectionBtn.disabled = false;
         }
     }
 

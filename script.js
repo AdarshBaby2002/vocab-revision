@@ -669,16 +669,31 @@ document.addEventListener('DOMContentLoaded', () => {
         sortedVocab.forEach(item => {
             const li = document.createElement('li');
             li.className = 'vocab-item';
+
+            const germanGroup = document.createElement('span');
+            germanGroup.className = 'vocab-german-group';
             
             const deSpan = document.createElement('span');
             deSpan.className = 'vocab-german';
             deSpan.textContent = item.german;
+
+            germanGroup.appendChild(deSpan);
+
+            if (Array.isArray(item.synonyms) && item.synonyms.length > 0) {
+                const synonymsSpan = document.createElement('span');
+                synonymsSpan.className = 'vocab-synonyms';
+                synonymsSpan.textContent = item.synonyms
+                    .map(value => String(value || '').trim())
+                    .filter(Boolean)
+                    .join(' / ');
+                germanGroup.appendChild(synonymsSpan);
+            }
             
             const enSpan = document.createElement('span');
             enSpan.className = 'vocab-english';
             enSpan.textContent = item.english;
             
-            li.appendChild(deSpan);
+            li.appendChild(germanGroup);
             li.appendChild(enSpan);
             
             vocabList.appendChild(li);
