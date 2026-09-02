@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn Sections - Vocab Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-card">
+            <div class="loader-spinner" aria-hidden="true"></div>
+            <strong>Loading Study Sections</strong>
+            <span>Gathering your vocabulary lists...</span>
+        </div>
+    </div>
+    <div class="container learn-container">
+        <header class="app-header">
+            <div class="header-top">
+                <div class="logo">
+                    <h1>Learn Sections</h1>
+                </div>
+                <div id="auth-card" class="auth-compact">
+                    <div id="auth-form" class="auth-actions">
+                        <a href="signin.html" class="btn-secondary btn-small" style="text-decoration: none;">Sign In</a>
+                        <a href="signup.html" class="btn-primary btn-small" style="text-decoration: none;">Sign Up</a>
+                    </div>
+                    <div class="auth-topline" style="margin-bottom: 0;">
+                        <strong id="user-badge" class="user-badge">Not signed in</strong>
+                        <button type="button" id="sign-out-btn" class="btn-secondary btn-small" style="display: none;">Sign Out</button>
+                    </div>
+                    <div id="auth-status" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="hero-section">
+                <p>Read each section first, then jump into the quiz when you are ready to write the words from memory.</p>
+                <div class="hero-actions">
+                    <a href="index.html" class="btn-secondary" style="text-decoration: none;">Home</a>
+                    <a href="quiz.html" class="btn-primary" style="text-decoration: none;">Go to Quiz</a>
+                    <a href="admin.html" id="admin-link" class="btn-secondary" style="display: none; text-decoration: none;">Admin</a>
+                    <a href="import.html" id="import-link" class="btn-secondary" style="display: none; text-decoration: none;">Import</a>
+                </div>
+            </div>
+        </header>
+
+        <section class="glass-card study-panel">
+            <div class="study-hero">
+                <div class="study-hero-copy">
+                    <p class="study-eyebrow">Study mode</p>
+                    <h2>Read one section at a time</h2>
+                    <p class="study-hero-text">Pick a section, read the full list, and then move to the quiz to write the words from memory.</p>
+                </div>
+                <div class="study-hero-pills" aria-hidden="true">
+                    <span>Section focus</span>
+                    <span>One list only</span>
+                    <span>Quiz next</span>
+                </div>
+            </div>
+
+            <div class="panel-heading">
+                <h2>Section Library</h2>
+                <span id="study-summary" class="panel-note">Loading sections...</span>
+            </div>
+
+            <div class="input-group study-search">
+                <label for="section-select">Choose Section</label>
+                <select id="section-select">
+                    <option value="">Loading sections...</option>
+                </select>
+            </div>
+
+            <div id="study-sections" class="study-section-list"></div>
+            <div id="study-status" class="admin-status"></div>
+        </section>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-init.js"></script>
+    <script src="auth.js"></script>
+    <script src="learn.js"></script>
+</body>
+</html>
