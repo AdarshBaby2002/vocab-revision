@@ -179,6 +179,11 @@ select {
     cursor: pointer;
 }
 
+select option {
+    background: #ffffff;
+    color: #111827;
+}
+
 .quiz-controls {
     margin-top: 1.5rem;
     display: flex;
