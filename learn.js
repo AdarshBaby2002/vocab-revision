@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const studySummary = document.getElementById('study-summary');
     const studyStatus = document.getElementById('study-status');
     const sectionSelect = document.getElementById('section-select');
+    const LAST_STUDY_SECTION_KEY = 'lastStudySection';
 
     let vocabData = [];
     let vocabRef = null;
@@ -27,7 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (sectionSelect) {
-        sectionSelect.addEventListener('change', renderSections);
+        sectionSelect.addEventListener('change', () => {
+            saveLastStudySection(sectionSelect.value);
+            renderSections();
+        });
     }
 
     function loadVocabulary() {
@@ -181,10 +185,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function getLastStudySection() {
+        try {
+            return localStorage.getItem(LAST_STUDY_SECTION_KEY) || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function saveLastStudySection(sectionKey) {
+        try {
+            if (sectionKey) {
+                localStorage.setItem(LAST_STUDY_SECTION_KEY, sectionKey);
+            }
+        } catch (error) {
+            // Ignore storage errors so section rendering still works.
+        }
+    }
+
     function populateSectionSelect() {
         if (!sectionSelect) return;
 
-        const previousValue = sectionSelect.value;
+        const previousValue = sectionSelect.value || getLastStudySection();
         sectionSelect.innerHTML = '';
 
         if (preparedSections.length === 0) {
@@ -214,6 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (!sectionSelect.value && preparedSections.length > 0) {
             sectionSelect.value = preparedSections[0].key;
         }
+
+        saveLastStudySection(sectionSelect.value);
     }
 
     function setStudyStatus(message, className = '') {
